@@ -5,7 +5,7 @@
 |____/|_____|__|__|____/ \___/|__|__|_____|_____|_____|_____|
 ```
 
-[![Release](https://img.shields.io/github/v/release/guarnz/deadvalues?sort=semver&label=Release)](https://github.com/guarnz/deadvalues/releases) [![Go](https://img.shields.io/github/go-mod/go-version/guarnz/deadvalues?logo=go&logoColor=white&label=Go)](go.mod) [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/guarnz/deadvalues?label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/guarnz/deadvalues) [![GitOps](https://img.shields.io/badge/GitOps-Argo_CD_%7C_Flux-326CE5?logo=git&logoColor=white)](docs/argo-flux.md)
+[![Release](https://img.shields.io/github/v/release/guarnz/deadvalues?sort=semver&label=Release)](https://github.com/guarnz/deadvalues/releases) [![Go](https://img.shields.io/github/go-mod/go-version/guarnz/deadvalues?logo=go&logoColor=white&label=Go)](https://github.com/guarnz/deadvalues/blob/main/go.mod) [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/guarnz/deadvalues?label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/guarnz/deadvalues) [![GitOps](https://img.shields.io/badge/GitOps-Argo_CD_%7C_Flux-326CE5?logo=git&logoColor=white)](https://github.com/guarnz/deadvalues/blob/main/docs/argo-flux.md) [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/deadvalues)](https://artifacthub.io/packages/search?repo=deadvalues)
 
 **Helm values dead code detector.** Find the keys in your values files that have **no effect**, and the ones a chart upgrade silently breaks.
 
@@ -70,11 +70,11 @@ example  webapp 0.1.0 → 0.2.0
 - **Network access** to the chart repositories (HTTP or OCI), unless the charts are local or already cached.
 - **Private repositories** use your existing Helm credentials (`helm repo add`, `helm registry login`).
 
-Releases are signed with cosign (keyless) and ship an SBOM. How to verify them, run the container as your user and set up shell completion is in [docs/install.md](docs/install.md).
+Releases are signed with cosign (keyless) and ship an SBOM. How to verify them, run the container as your user and set up shell completion is in [docs/install.md](https://github.com/guarnz/deadvalues/blob/main/docs/install.md).
 
 ## Usage
 
-Every command and flag is in the [CLI reference](docs/cli/deadvalues.md) (the same text as `--help`).
+Every command and flag is in the [CLI reference](https://github.com/guarnz/deadvalues/blob/main/docs/cli/deadvalues.md) (the same text as `--help`).
 
 ### `check`: one app
 
@@ -201,17 +201,17 @@ It compares the change with the state before it (the pull request base, or the c
 - run: deadvalues scan apps -o sarif --output-file results.sarif --fail-on none
 ```
 
-`args` runs your own command with the same report; `setup` only installs the binary. Inputs, outputs and the report format are in [docs/github-action.md](docs/github-action.md).
+`args` runs your own command with the same report; `setup` only installs the binary. Inputs, outputs and the report format are in [docs/github-action.md](https://github.com/guarnz/deadvalues/blob/main/docs/github-action.md).
 
 ## Documentation
 
-- [Install](docs/install.md): every install method, requirements, shell completion and verifying a release
-- [CLI reference](docs/cli/deadvalues.md): every command and flag, generated from the code
-- [How it works](docs/how-it-works.md): the render-and-compare method, shared values files, git refs and limitations
-- [Argo CD and Flux](docs/argo-flux.md): supported fields, kustomize overlays and `${var}` substitution
-- [Configuration](docs/configuration.md): `.deadvalues.yaml`, ignoring keys and declaring cluster APIs
-- [Output](docs/output.md): formats, writing reports to files, color and exit codes
-- [GitHub Action](docs/github-action.md): the built-in flow, your own command, setup only, inputs and outputs
+- [Install](https://github.com/guarnz/deadvalues/blob/main/docs/install.md): every install method, requirements, shell completion and verifying a release
+- [CLI reference](https://github.com/guarnz/deadvalues/blob/main/docs/cli/deadvalues.md): every command and flag, generated from the code
+- [How it works](https://github.com/guarnz/deadvalues/blob/main/docs/how-it-works.md): the render-and-compare method, shared values files, git refs and limitations
+- [Argo CD and Flux](https://github.com/guarnz/deadvalues/blob/main/docs/argo-flux.md): supported fields, kustomize overlays and `${var}` substitution
+- [Configuration](https://github.com/guarnz/deadvalues/blob/main/docs/configuration.md): `.deadvalues.yaml`, ignoring keys and declaring cluster APIs
+- [Output](https://github.com/guarnz/deadvalues/blob/main/docs/output.md): formats, writing reports to files, color and exit codes
+- [GitHub Action](https://github.com/guarnz/deadvalues/blob/main/docs/github-action.md): the built-in flow, your own command, setup only, inputs and outputs
 
 ## Development
 
@@ -222,4 +222,4 @@ go test ./internal/cli -bench CheckN8n -run XXX
 go run ./internal/tools/gendocs
 ```
 
-`go run ./internal/tools/gendocs` regenerates `docs/cli` after a change to a command or flag; CI fails if it is out of date. How deadvalues works inside is in [DESIGN.md](DESIGN.md), and how to contribute in [CONTRIBUTING.md](CONTRIBUTING.md).
+`go run ./internal/tools/gendocs` regenerates `docs/cli` after a change to a command or flag; CI fails if it is out of date. How deadvalues works inside is in [DESIGN.md](https://github.com/guarnz/deadvalues/blob/main/DESIGN.md), and how to contribute in [CONTRIBUTING.md](https://github.com/guarnz/deadvalues/blob/main/CONTRIBUTING.md).
