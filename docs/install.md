@@ -25,7 +25,15 @@ helm plugin install https://github.com/guarnz/deadvalues
 helm deadvalues check --chart ./mychart -f values.yaml
 ```
 
-The install hook downloads the release binary for your system, checks it against `checksums.txt` and keeps it in the plugin directory. It needs `curl`, and `tar` (or `unzip` on Windows).
+Helm 4 verifies plugin signatures by default, which a plugin installed from a git repository cannot provide; add `--verify=false`:
+
+```bash
+helm plugin install https://github.com/guarnz/deadvalues --verify=false
+```
+
+`--verify=false` skips the check of the plugin package (`plugin.yaml` and the install script), not of deadvalues itself: the install hook only installs a binary that matches the release `checksums.txt`, which is signed with cosign. For a fully verified install with nothing to set up first, use the binary or the container image and [verify the release](#verifying-a-release).
+
+The install hook downloads the release binary for your system, checks it against `checksums.txt` and keeps it in the plugin directory. It needs `curl`, and `tar` (or `unzip` on Windows). Add `--version v0.1.0` to install a specific release.
 
 ## Container
 
