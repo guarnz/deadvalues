@@ -1,0 +1,30 @@
+name: deadvalues setup
+description: Install the deadvalues CLI and add it to the PATH
+branding:
+  icon: download
+  color: red
+inputs:
+  version:
+    description: deadvalues release to install (e.g. v0.1.0), or latest. Default, the release matching the ref the action is used at
+    default: ""
+  github-token:
+    description: Token used to download the release
+    default: ${{ github.token }}
+outputs:
+  version:
+    description: The installed deadvalues version
+    value: ${{ steps.install.outputs.version }}
+  path:
+    description: Path of the deadvalues binary
+    value: ${{ steps.install.outputs.path }}
+runs:
+  using: composite
+  steps:
+    - name: Install deadvalues
+      id: install
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: bash "$GITHUB_ACTION_PATH/../scripts/action-install.sh"

@@ -1,0 +1,24 @@
+name: ""
+replicas: 1
+revisionHistoryLimit: 10
+image:
+  repository: nginx
+  tag: "1.27"
+service:
+  type: ClusterIP
+  port: 80
+labels: {}
+env: []
+secretKey: ""
+message: ""
+features:
+  a: false
+  b: false
+ingress:
+  enabled: false
+  host: example.com
+monitoring:
+  serviceMonitor: false
+password: ""
+sub:
+  enabled: false

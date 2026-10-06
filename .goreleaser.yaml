@@ -1,0 +1,95 @@
+version: 2
+project_name: deadvalues
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: deadvalues
+    main: ./cmd/deadvalues
+    binary: deadvalues
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .Date }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE*
+checksum:
+  name_template: checksums.txt
+sboms:
+  - artifacts: archive
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - --bundle=${signature}
+      - ${artifact}
+      - --yes
+    artifacts: checksum
+    output: true
+dockers_v2:
+  - id: image
+    ids:
+      - deadvalues
+    images:
+      - ghcr.io/guarnz/deadvalues
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.source: https://github.com/guarnz/deadvalues
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+docker_signs:
+  - artifacts: manifests
+    args:
+      - sign
+      - ${artifact}@${digest}
+      - --yes
+git:
+  ignore_tags:
+    - "{{ if not .Prerelease }}*-*{{ end }}"
+release:
+  prerelease: auto
+changelog:
+  use: github
+  filters:
+    include:
+      - '^.*?(feat|fix|perf)(\(.+\))??!?:.+$'
+      - '^.*?build\(deps\):.+$'
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Performance
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: Dependencies
+      regexp: '^.*?build\(deps\):.+$'
+      order: 3

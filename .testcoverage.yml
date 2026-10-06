@@ -1,0 +1,11 @@
+profile: cover.out
+threshold:
+  total: 80
+override:
+  - path: ^internal/probe$
+    threshold: 90
+exclude:
+  paths:
+    - ^cmd/deadvalues
+    - ^internal/tools/gendocs
+    - ^internal/cli/docs\.go$

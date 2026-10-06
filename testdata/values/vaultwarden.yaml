@@ -1,0 +1,20 @@
+signupsAllowed: false
+adminToken:
+  existingSecret: vaultwarden-credentials
+  existingSecretKey: ADMIN_TOKEN
+image:
+  extraVarsSecret: vaultwarden-credentials
+storage:
+  data:
+    name: vaultwarden-data
+    size: 1Gi
+    accessMode: ReadWriteOnce
+    labels:
+      recurring-job-group.longhorn.io/backup: enabled
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 256Mi

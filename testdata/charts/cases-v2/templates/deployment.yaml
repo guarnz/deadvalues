@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ required "name is required" .Values.name }}
+  labels:
+    {{- toYaml .Values.podLabels | nindent 4 }}
+  annotations:
+    message: {{ tpl .Values.message . | quote }}
+    {{- if or .Values.features.a .Values.features.b }}
+    features: "on"
+    {{- end }}
+spec:
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  template:
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          env:
+            - name: SECRET_KEY
+              value: {{ default "SECRET" .Values.secretKey | quote }}
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}

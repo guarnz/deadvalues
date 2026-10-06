@@ -1,0 +1,25 @@
+name: app
+replicas: 3
+image:
+  repository: nginx
+  tag: "1.28"
+service:
+  type: ClusterIP
+  prot: 8080
+labels:
+  team: core
+secretKey: SECRET
+message: "hello {{ .Release.Name }}"
+features:
+  a: true
+  b: true
+ingress:
+  enabled: false
+  host: app.example.com
+monitoring:
+  serviceMonitor: true
+env:
+  - name: A
+    value: "1"
+sub:
+  size: large

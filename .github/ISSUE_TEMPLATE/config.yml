@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/guarnz/deadvalues/tree/main/docs
+    about: How to use deadvalues, the GitHub Action, Argo CD and Flux support
+  - name: Helm documentation
+    url: https://helm.sh/docs/
+    about: Helm official documentation

@@ -1,0 +1,9 @@
+{{- if and .Values.monitoring.serviceMonitor (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor") }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.name }}
+spec:
+  endpoints:
+    - port: http
+{{- end }}

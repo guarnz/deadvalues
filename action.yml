@@ -1,0 +1,97 @@
+name: deadvalues
+description: Find Helm values that have no effect, and keys that stop working when a chart is upgraded
+branding:
+  icon: search
+  color: red
+inputs:
+  path:
+    description: Directory with the Argo CD Applications or Flux HelmReleases (a kustomize overlay works too). Default, the whole repository
+    default: .
+  mode:
+    description: "all: diff the chart bumps and scan the changed apps. diff: only the chart bumps. scan: only the apps, every app when there is no base. Ignored when args is set."
+    default: all
+  base:
+    description: Git ref or SHA to compare with. Default, the pull request base on pull_request and the commit before the push on push.
+    default: ""
+  args:
+    description: Run this deadvalues command instead of the built-in flow, e.g. "diff --app apps/example.yaml --to 2.0.0". Split on spaces, quotes are not supported.
+    default: ""
+  fail-on-diff:
+    description: "Fail when diff finds: breaking | pinned | changed | none."
+    default: breaking
+  fail-on-scan:
+    description: "Fail when scan finds: dead | conditional | redundant | none."
+    default: none
+  version:
+    description: deadvalues release to install (e.g. v0.1.0), or latest. Default, the release matching the ref the action is used at
+    default: ""
+  comment:
+    description: Post or update a pull request comment with the report
+    default: "true"
+  github-token:
+    description: Token used to download the release and comment on the pull request
+    default: ${{ github.token }}
+outputs:
+  report:
+    description: Path of the Markdown report
+    value: ${{ steps.run.outputs.report }}
+  status:
+    description: "Exit status: 0 no findings at the fail-on levels, 1 findings, 2 errors"
+    value: ${{ steps.run.outputs.status }}
+  base:
+    description: The base that was compared with, empty when there was none
+    value: ${{ steps.run.outputs.base }}
+  version:
+    description: The installed deadvalues version
+    value: ${{ steps.install.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Install deadvalues
+      id: install
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/action-install.sh"
+    - name: Run deadvalues
+      id: run
+      shell: bash
+      env:
+        APPS: ${{ inputs.path }}
+        MODE: ${{ inputs.mode }}
+        ARGS: ${{ inputs.args }}
+        BASE_INPUT: ${{ inputs.base }}
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        FAIL_ON_DIFF: ${{ inputs.fail-on-diff }}
+        FAIL_ON_SCAN: ${{ inputs.fail-on-scan }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/action-run.sh"
+    - name: Comment on the pull request
+      if: inputs.comment == 'true' && github.event.pull_request.number != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR: ${{ github.event.pull_request.number }}
+        REPORT: ${{ steps.run.outputs.report }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        set -euo pipefail
+        body="$REPORT"
+        if [ "$(wc -c < "$REPORT")" -gt 60000 ]; then
+          body="$RUNNER_TEMP/deadvalues-comment.md"
+          { head -c 58000 "$REPORT"; printf '\n\n_The report is too long for a comment, see the [job summary](%s)._\n' "$RUN_URL"; } > "$body"
+        fi
+        id="$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+          --jq '.[] | select(.body | startswith("<!-- deadvalues -->")) | .id' | head -n1)"
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$body" >/dev/null
+        else
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@"$body" >/dev/null
+        fi
+    - name: Fail on findings
+      shell: bash
+      env:
+        STATUS: ${{ steps.run.outputs.status }}
+      run: exit "$STATUS"

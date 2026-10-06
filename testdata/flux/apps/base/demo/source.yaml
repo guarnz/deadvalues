@@ -1,0 +1,9 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: platform
+spec:
+  interval: 10m
+  url: https://example.com/platform
+  ref:
+    branch: main

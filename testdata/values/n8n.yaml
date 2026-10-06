@@ -1,0 +1,46 @@
+image:
+  repository: docker.io/n8nio/n8n
+timezone: "America/Sao_Paulo"
+strategy:
+  type: Recreate
+  rollingUpdate: null
+existingEncryptionKeySecret: "n8n-credentials"
+db:
+  type: sqlite
+service:
+  type: ClusterIP
+  port: 5678
+ingress:
+  enabled: false
+main:
+  extraEnvVars:
+    N8N_TRUST_PROXY: "true"
+    N8N_PROXY_HOPS: "1"
+    NODE_OPTIONS: "--max-old-space-size=768"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 384Mi
+    limits:
+      cpu: 300m
+      memory: 1Gi
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    initialDelaySeconds: 180
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 3
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 3
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 5Gi

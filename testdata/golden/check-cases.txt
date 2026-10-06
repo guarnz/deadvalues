@@ -1,0 +1,21 @@
+demo  cases 0.1.0  ←  ../../testdata/values/cases.yaml
+N renders in T
+note: list the APIs your cluster serves under apiVersions in .deadvalues.yaml to resolve API-dependent keys
+
+  ALIVE       env                        [{"name":"A","value":"1"}]
+  GROUP       features                   {"a":true,"b":true}  (only effective as a group)
+  REDUNDANT   image.repository           = chart default "nginx"
+  ALIVE       image.tag                  "1.28"
+  REDUNDANT   ingress.enabled            = chart default false
+  CONDITIONAL ingress.host               "app.example.com"  (only when ingress.enabled=true)
+  ALIVE       labels.team                "core"
+  ALIVE       message                    "hello {{ .Release.Name }}"
+  CONDITIONAL monitoring.serviceMonitor  true  (only when the cluster serves monitoring.coreos.com/v1/ServiceMonitor)
+  ERROR       name                       removing it breaks the render: execution error at (cases/templates/deployment.yaml:4:11): name is required
+  ALIVE       replicas                   3
+  REDUNDANT   secretKey                  "SECRET"  (= fallback hardcoded in the template)
+  DEAD        service.prot               8080  (key not in chart values.yaml)
+  REDUNDANT   service.type               = chart default "ClusterIP"
+  CONDITIONAL sub.size                   "large"  (only when sub.enabled=true)
+
+  1 dead, 3 conditional, 4 redundant, 5 alive, 1 group, 1 required

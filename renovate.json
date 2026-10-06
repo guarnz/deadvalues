@@ -1,0 +1,55 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":dependencyDashboard"
+  ],
+  "ignorePaths": ["testdata/**"],
+  "pinDigests": true,
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths"
+  ],
+  "timezone": "America/Sao_Paulo",
+  "schedule": [
+    "after 12am and before 6am every weekday"
+  ],
+  "prHourlyLimit": 3,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": ["golang\\.org/x/vuln/cmd/govulncheck@(?<currentValue>v[0-9.]+)"],
+      "depNameTemplate": "golang.org/x/vuln",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": ["github\\.com/rhysd/actionlint/cmd/actionlint@(?<currentValue>v[0-9.]+)"],
+      "depNameTemplate": "github.com/rhysd/actionlint",
+      "datasourceTemplate": "go"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["*"],
+      "semanticCommitType": "build"
+    },
+    {
+      "matchManagers": ["github-actions", "custom.regex"],
+      "semanticCommitType": "ci"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["k8s.io/**", "sigs.k8s.io/**"],
+      "groupName": "kubernetes"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["helm.sh/**"],
+      "groupName": "helm sdk"
+    }
+  ]
+}

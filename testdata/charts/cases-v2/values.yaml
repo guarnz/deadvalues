@@ -1,0 +1,24 @@
+name: ""
+replicas: 1
+revisionHistoryLimit: 5
+image:
+  repository: nginx
+  tag: "1.27"
+service:
+  type: LoadBalancer
+  port: 80
+podLabels: {}
+env: []
+secretKey: ""
+message: ""
+features:
+  a: false
+  b: false
+ingress:
+  enabled: false
+  host: example.com
+monitoring:
+  serviceMonitor: false
+password: ""
+sub:
+  enabled: false

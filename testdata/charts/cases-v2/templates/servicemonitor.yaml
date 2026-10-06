@@ -1,0 +1,9 @@
+{{- if .Values.monitoring.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.name }}
+spec:
+  endpoints:
+    - port: http
+{{- end }}

@@ -1,0 +1,7 @@
+/deadvalues
+/deadvalues.exe
+/dist/
+/bin/
+*.test
+*.out
+/scripts/release.sh
