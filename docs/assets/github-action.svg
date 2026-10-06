@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 250" width="960" height="250" role="img" aria-labelledby="t d">
+  <title id="t">The deadvalues GitHub Action on a pull request</title>
+  <desc id="d">Renovate bumps a chart in a pull request. The action diffs the bump and scans the changed apps, posts the report as a comment, and fails the check on a breaking change so Renovate does not automerge it.</desc>
+  <style>
+    .bg { fill: #0d1117; stroke: #30363d; }
+    .node { fill: #161b22; stroke: #3d444d; stroke-width: 1.2; }
+    .in { fill: #161b22; stroke: #58a6ff; stroke-width: 1.2; }
+    .bad { fill: #ff7b7214; stroke: #ff7b72; stroke-width: 1.2; }
+    .good { fill: #3fb95014; stroke: #3fb950; stroke-width: 1.2; }
+    .title { fill: #e6edf3; font: 600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .sub { fill: #9198a1; font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { fill: #e6edf3; font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .red { fill: #ff7b72; } .green { fill: #3fb950; }
+    .flow { fill: none; stroke-width: 2; stroke-dasharray: 6 6; animation: flow 1s linear infinite; }
+    .blue { stroke: #58a6ff; } .f-red { stroke: #ff7b72; } .f-green { stroke: #3fb950; }
+    @keyframes flow { to { stroke-dashoffset: -12; } }
+    @media (prefers-reduced-motion: reduce) { .flow { animation: none; } }
+  </style>
+  <defs>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#58a6ff"/>
+    </marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#ff7b72"/>
+    </marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#3fb950"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="959" height="249" rx="12"/>
+
+  <rect class="in" x="20" y="92" width="176" height="66" rx="8"/>
+  <text class="title" x="108" y="120" text-anchor="middle">Renovate</text>
+  <text class="mono" x="108" y="141" text-anchor="middle">webapp 0.1.0 → 0.2.0</text>
+
+  <rect class="node" x="232" y="92" width="132" height="66" rx="8"/>
+  <text class="title" x="298" y="120" text-anchor="middle">pull request</text>
+  <text class="sub" x="298" y="140" text-anchor="middle">or a push</text>
+
+  <rect class="node" x="400" y="80" width="196" height="90" rx="8"/>
+  <text class="title" x="498" y="106" text-anchor="middle">guarnz/deadvalues</text>
+  <text class="mono" x="498" y="130" text-anchor="middle">diff --base</text>
+  <text class="mono" x="498" y="151" text-anchor="middle">scan --changed-since</text>
+
+  <path class="flow blue" d="M196 125 H 230" marker-end="url(#b)"/>
+  <path class="flow blue" d="M364 125 H 398" marker-end="url(#b)"/>
+
+  <rect class="node" x="652" y="22" width="288" height="54" rx="8"/>
+  <text class="title" x="672" y="45">report</text>
+  <text class="sub" x="672" y="64">job summary and a pull request comment</text>
+
+  <rect class="bad" x="652" y="98" width="288" height="54" rx="8"/>
+  <text class="title red" x="672" y="121">BREAKING: the check fails</text>
+  <text class="sub" x="672" y="140">Renovate does not automerge it</text>
+
+  <rect class="good" x="652" y="174" width="288" height="54" rx="8"/>
+  <text class="title green" x="672" y="197">clean: the check passes</text>
+  <text class="sub" x="672" y="216">automerge goes ahead</text>
+
+  <path class="flow blue" d="M596 110 C 624 110, 622 49, 650 49" marker-end="url(#b)"/>
+  <path class="flow f-red" d="M596 125 H 650" marker-end="url(#r)"/>
+  <path class="flow f-green" d="M596 140 C 624 140, 622 201, 650 201" marker-end="url(#g)"/>
+</svg>
