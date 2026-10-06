@@ -1,5 +1,5 @@
 name: deadvalues
-version: 0.1.0
+version: 0.1.0-rc.1
 usage: Find Helm values that have no effect on the rendered chart
 description: Renders the chart, removes each key you set and checks whether the output changes, to find typos, renamed keys and values equal to the chart default.
 command: $HELM_PLUGIN_DIR/bin/deadvalues
