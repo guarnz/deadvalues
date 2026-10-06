@@ -60,7 +60,7 @@ example  webapp 0.1.0 → 0.2.0
 |---|---|
 | Binary | Download from the [releases](https://github.com/guarnz/deadvalues/releases) (Linux, macOS, Windows; amd64 and arm64) |
 | Go 1.26+ | `go install github.com/guarnz/deadvalues/cmd/deadvalues@latest` |
-| Helm plugin | `helm plugin install https://github.com/guarnz/deadvalues` |
+| Helm plugin | `helm plugin install https://github.com/guarnz/deadvalues` (Helm 4: add `--verify=false`) |
 | Container | `docker run --rm -v "$PWD:/repo" ghcr.io/guarnz/deadvalues scan apps` |
 
 ### Requirements
