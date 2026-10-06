@@ -76,6 +76,7 @@ release:
   prerelease: auto
 changelog:
   use: github
+  format: "{{ .SHA }}: {{ .Message }}{{ with .AuthorUsername }} (@{{ . }}){{ end }}"
   filters:
     include:
       - '^.*?(feat|fix|perf)(\(.+\))??!?:.+$'
