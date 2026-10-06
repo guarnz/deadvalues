@@ -36,6 +36,8 @@ Nothing is written to the job summary and no comment is posted.
 
 ## Built-in flow
 
+![Renovate bumps a chart, the action diffs it and fails the check on a breaking change](assets/github-action.svg)
+
 ```yaml
 on:
   pull_request:

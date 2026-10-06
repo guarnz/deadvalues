@@ -2,6 +2,8 @@
 
 deadvalues does not parse templates. It **renders the chart, removes each key you set, renders again and compares** the manifests:
 
+![Render the chart, remove a key, render again and compare](assets/how-it-works.svg)
+
 1. Render the chart twice with your values. Fields that differ between the two renders (`randAlphaNum`, generated certificates, checksum annotations) are masked as noise.
 2. Remove a subtree of your values and re-render. No change → every key under it is classified at once. Change → descend one level (bisection).
 3. For keys whose removal changes nothing:

@@ -11,6 +11,8 @@
 
 Helm ignores keys a chart does not read, without a warning. A chart renames `storage.data.labels` to `persistence.labels`, Renovate bumps it, and your values keep the old key: CI and Argo CD stay green while the label your backups depend on is gone. deadvalues catches that in the pull request.
 
+![deadvalues check finds a dead key, then deadvalues diff finds the key a chart bump breaks](https://raw.githubusercontent.com/guarnz/deadvalues/main/docs/assets/demo.gif)
+
 - **Catches:** typos, renamed or removed keys, values equal to the chart default, keys that only matter when a feature is on
 - **Reads:** Argo CD Applications, Flux HelmReleases (with kustomize overlays), or a chart and values files
 - **Runs as:** a CLI, a Helm plugin, a container image or a GitHub Action
