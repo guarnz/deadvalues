@@ -1,5 +1,5 @@
 name: deadvalues
-version: 0.1.0
+version: 0.1.1
 usage: Find Helm values that have no effect on the rendered chart
 description: Finds the Helm values that have no effect, and the ones a chart upgrade silently breaks.
 platformCommand:
