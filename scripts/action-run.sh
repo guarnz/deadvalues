@@ -4,6 +4,7 @@
 # environment set in action.yml. The script itself always exits 0; the exit
 # status of deadvalues goes to the "status" output and a later step fails the
 # job, so the comment is still posted when there are findings.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 work="$RUNNER_TEMP/deadvalues-run"
@@ -16,27 +17,16 @@ zero=0000000000000000000000000000000000000000
 fence='```'
 status=0
 n=0
-base_line=""
 note=""
 blocker=""
 
-# jq filters over the JSON reports: whether there is something worth showing,
-# and the counts quoted in the alert at the top.
-diff_finds='[.] | flatten | any(.error != null or any(.changes[]?; .ignored != true))'
-check_finds='[.] | flatten | any(.error != null or any(.keys[]?; .ignored != true and (.usedBy // "") == "" and ((.sharedWith // []) | length) == 0 and (.status | test("^(DEAD|CONDITIONAL|REDUNDANT)"))))'
-diff_counts='[.] | flatten | "\(map(.counts.BREAKING // 0) | add // 0) breaking, \(map(.counts.PINNED // 0) | add // 0) pinned, \(map(.counts.CHANGED // 0) | add // 0) changed, \(map(.counts.FIXED // 0) | add // 0) fixed"'
-check_counts='[.] | flatten | "\(map(.counts.DEAD // 0) | add // 0) dead, \(map(.counts.CONDITIONAL // 0) | add // 0) conditional, \(map(.counts.REDUNDANT // 0) | add // 0) redundant"'
-errors='[.] | flatten | map(select(.error != null)) | length'
-
 # dv runs one deadvalues command in its own log group and keeps everything the
-# report needs. Commands with a Markdown report also write JSON, which decides
-# whether their section is shown.
+# report needs: check, scan and diff also write JSON, explain only Markdown.
 dv() {
   n=$((n + 1))
   local id="$work/$n" rc
   local files=()
   echo "deadvalues $*" > "$id.cmd"
-  echo "${1:-}" > "$id.name"
   case "${1:-}" in
     check|scan|diff) files=(--output-file "markdown=$id.md" --output-file "json=$id.json") ;;
     explain) files=(--output-file "markdown=$id.md") ;;
@@ -50,41 +40,55 @@ dv() {
   if [ "$rc" -gt "$status" ]; then status=$rc; fi
 }
 
-# state prints error, findings, clean or output for the command with id $1.
-state() {
-  local id="$work/$1" rc filter
-  rc="$(cat "$id.rc")"
-  if [ "$rc" -ge 2 ]; then echo error; return; fi
-  if [ "$rc" -eq 1 ]; then echo findings; return; fi
-  case "$(cat "$id.name")" in
-    diff) filter="$diff_finds" ;;
-    check|scan) filter="$check_finds" ;;
-    *) echo output; return ;;
-  esac
-  if [ ! -s "$id.json" ] || ! command -v jq >/dev/null; then echo findings; return; fi
-  if jq -e "$filter" "$id.json" >/dev/null 2>&1; then echo findings; else echo clean; fi
-}
+rows_jq=$(cat <<'EOF'
+def rank: {"BREAKING":0,"ERROR":1,"PINNED":2,"DEAD":3,"CHANGED":4,"FIXED":5,"REDUNDANT":6,"CONDITIONAL":7}[.] // 8;
+def rel: if $ws != "" and startswith($ws + "/") then .[($ws | length) + 1:] else . end;
+[.[] | if type == "array" then .[] else . end] as $reports
+| [$reports[] | . as $r
+    | if (.error // "") != "" then {app: .app, file: (.appFile // ""), head: (.chart // ""), kind: "ERROR", key: "", detail: .error, src: null}
+      elif has("changes") then .changes[]? | select(.ignored != true)
+        | {app: $r.app, file: ($r.appFile // ""), head: "chart \($r.from) → \($r.to)", kind: .kind, key: .key, detail: .detail, src: (.origins // [])[0], diff: true}
+      elif has("keys") then .keys[]?
+        | select(.ignored != true and (.usedBy // "") == "" and ((.sharedWith // []) | length) == 0 and (.status | test("^(DEAD|CONDITIONAL|REDUNDANT)")))
+        | {app: $r.app, file: ($r.appFile // ""), head: ($r.chart // ""), kind: (.status | split(" ")[0]), key: .key, detail: .detail, src: (.origins // [])[0]}
+      else empty end
+    | .rank = (.kind | rank)]
+| (map(select(.diff) | "\(.app) \(.key)")) as $seen
+| map(select(.diff or (("\(.app) \(.key)") as $k | $seen | index($k) | not))) as $rows
+EOF
+)
 
-# summary prints the counts of the command with id $1 for the alert.
-summary() {
-  local id="$work/$1" name filter counts failed
-  name="$(cat "$id.name")"
-  case "$name" in
-    diff) filter="$diff_counts" ;;
-    check|scan) filter="$check_counts" ;;
-    *) return ;;
-  esac
-  if [ ! -s "$id.json" ] || ! command -v jq >/dev/null; then
-    echo "> - \`$name\`: could not run, see below."
-    return
-  fi
-  counts="$(jq -r "$filter" "$id.json" 2>/dev/null)"
-  failed="$(jq -r "$errors" "$id.json" 2>/dev/null)"
-  if [ "${failed:-0}" -gt 0 ]; then counts="$counts, $failed not analyzed"; fi
-  echo "> - \`$name\`: $counts"
-}
+body_jq=$(cat <<'EOF'
+def mark: if . <= 1 then "✗" elif . <= 3 then "!" else "±" end;
+def heading: .[0:1] + (.[1:] | ascii_downcase);
+def cell: gsub("\\|"; "\\|") | gsub("\n"; " ") | gsub("  +"; " ");
+def pad($w): . + (if $w > length then " " * ($w - length) else "" end);
+def src: if . == null or (.file // "") == "" then ""
+  else (.file | rel) as $f | (if .line then "\($f):\(.line)" else $f end) as $t
+  | if $blob != "" then " · [\($t)](\($blob)/\($f)\(if .line then "#L\(.line)" else "" end))" else " · `\($t)`" end end;
+($rows | map(.app | length) | max // 0) as $w
+| ($rows | group_by(.rank) | map(
+    "\(.[0].kind | heading) (\(length)):\n"
+    + (map("\(.rank | mark) \(.app | pad($w))  \(if .key != "" then .key else "not analyzed" end)") | join("\n"))
+  ) | join("\n")) as $summary
+| ($rows | group_by(.app) | sort_by((map(.rank) | min), .[0].app) | map(
+    (map(select(.head | startswith("chart "))) | first // null) as $bump
+    | (if $bump != null then $bump.head else .[0].head end) as $head
+    | "<details\(if any(.rank <= 1) then " open" else "" end)><summary><b>\(.[0].app)</b>"
+      + (if .[0].file != "" then " (\(.[0].file | rel))" else "" end)
+      + (if $head != "" then " · \($head)" else "" end) + "</summary>\n\n"
+      + "| Finding | Key | Detail |\n|---|---|---|\n"
+      + (sort_by(.rank) | map("| \(if .rank <= 1 then "**\(.kind)**" else .kind end) | \(if .key != "" then "`\(.key)`" else "" end) | \(.detail | cell)\(.src | src) |") | join("\n"))
+      + "\n</details>"
+  ) | join("\n\n")) as $details
+| "Summary:\n\n```yaml\n\($summary)\n```\n\n\($details)\n"
+EOF
+)
 
-section() {
+stats_jq='"[Apps: \($reports | map(select((.renders // 0) > 0 or (.error // "") != "") | .app) | unique | length)], [Renders: \($reports | map(.renders // 0) | add // 0)], [Run: \((($reports | map(.durationMs // 0) | add // 0) / 1000 | ceil))s]"'
+
+# output prints what the command with id $1 wrote and, when it failed, its errors.
+output() {
   local id="$work/$1"
   if [ -s "$id.md" ]; then
     cat "$id.md"
@@ -94,6 +98,86 @@ section() {
   if [ "$(cat "$id.rc")" -ge 2 ] && [ -s "$id.err" ]; then
     printf '%stext\n%s\n%s\n\n' "$fence" "$(cat "$id.err")" "$fence"
   fi
+}
+
+# summary prints the report: findings from every JSON report in one place, and
+# the output of commands without one (explain, or a command that failed).
+summary() {
+  local i rows=0 breaking=0 stats="" blob="" run="" footer
+  local jsons=() others=() has_jq=1
+  command -v jq >/dev/null || has_jq=0
+  for ((i = 1; i <= n; i++)); do
+    if [ "$has_jq" -eq 1 ] && [ -s "$work/$i.json" ]; then jsons+=("$work/$i.json"); else others+=("$i"); fi
+  done
+  if [ -n "${GITHUB_SERVER_URL:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+    blob="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/${GITHUB_SHA:-HEAD}"
+    if [ -n "${GITHUB_RUN_ID:-}" ]; then run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi
+  fi
+  q() { jq -rs --arg ws "${GITHUB_WORKSPACE:-}" --arg blob "$blob" "$rows_jq | $1" "${jsons[@]}"; }
+  if [ "${#jsons[@]}" -gt 0 ]; then
+    rows="$(q '$rows | length')"
+    breaking="$(q '$rows | map(select(.kind == "BREAKING")) | length')"
+    stats="$(q "$stats_jq")"
+  fi
+
+  footer="_Stats_: "
+  if [ -n "$stats" ]; then footer="$footer$stats"; fi
+  if [ -n "$base" ]; then footer="${footer}${stats:+, }[Base: ${base:0:7}]"; fi
+  if [ "$footer" = "_Stats_: " ]; then footer=""; else footer="$footer · "; fi
+  if [ -n "$run" ]; then footer="${footer}[Run]($run) · "; fi
+  footer="${footer}[Docs]($docs)"
+
+  echo "<!-- deadvalues -->"
+  echo "## deadvalues"
+  echo
+  if [ -n "$blocker" ]; then
+    printf '> [!CAUTION]\n> %s\n\n' "$blocker"
+  elif [ "$status" -ge 2 ]; then
+    printf '> [!CAUTION]\n> deadvalues could not analyze everything, see the errors below. The check fails.\n\n'
+  elif [ "$status" -eq 1 ]; then
+    if [ "${breaking:-0}" -eq 1 ]; then
+      printf '> [!CAUTION]\n> 1 breaking change: a chart upgrade stops reading a key you set. The check fails.\n\n'
+    elif [ "${breaking:-0}" -gt 1 ]; then
+      printf '> [!CAUTION]\n> %s breaking changes: a chart upgrade stops reading keys you set. The check fails.\n\n' "$breaking"
+    else
+      printf '> [!CAUTION]\n> Findings at the fail-on level. The check fails.\n\n'
+    fi
+  fi
+  if [ -n "$note" ]; then printf '> [!NOTE]\n> %s\n\n' "$note"; fi
+  if [ "$has_jq" -eq 0 ] && [ "$n" -gt 0 ]; then
+    printf '> [!NOTE]\n> jq is not installed on the runner, so the findings are shown per command.\n\n'
+  fi
+
+  if [ "${rows:-0}" -gt 0 ]; then
+    q "$body_jq"
+  elif [ "$n" -gt 0 ] && [ "${#others[@]}" -eq 0 ]; then
+    if [ -n "$base" ]; then echo "No findings in the changed apps."; else echo "No findings."; fi
+    echo
+  fi
+  for i in ${others[@]+"${others[@]}"}; do
+    if [ "$(cat "$work/$i.rc")" -ge 2 ]; then
+      printf '<details open><summary>✗ <code>%s</code> failed</summary>\n\n' "$(cat "$work/$i.cmd")"
+      output "$i"
+      printf '</details>\n\n'
+    else
+      printf '**`%s`**\n\n' "$(cat "$work/$i.cmd")"
+      output "$i"
+      echo
+    fi
+  done
+
+  if [ "$n" -gt 0 ]; then
+    printf '<details><summary>Commands</summary>\n\n'
+    for ((i = 1; i <= n; i++)); do
+      if [ -n "$base" ]; then
+        echo "- \`$(sed "s/$base/${base:0:7}/g" "$work/$i.cmd")\`"
+      else
+        echo "- \`$(cat "$work/$i.cmd")\`"
+      fi
+    done
+    printf '\n</details>\n\n'
+  fi
+  echo "$footer"
 }
 
 case "$MODE" in
@@ -108,7 +192,6 @@ base=""
 if [ -z "${ARGS:-}" ]; then
   if [ -n "${BASE_INPUT:-}" ]; then
     base="$BASE_INPUT"
-    base_line="Base: \`$base\` (the \`base\` input)"
   else
     from=""
     if [ -n "${PR_BASE:-}" ]; then
@@ -122,9 +205,7 @@ if [ -z "${ARGS:-}" ]; then
       if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
         git fetch --no-tags --depth=1 origin "$base" >/dev/null 2>&1 || true
       fi
-      if git cat-file -e "$base^{commit}" 2>/dev/null; then
-        base_line="Base: \`${base:0:7}\` ($from)"
-      else
+      if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
         note="The base, $from (\`${base:0:7}\`), is not in the repository, e.g. after a force push."
         base=""
       fi
@@ -159,77 +240,7 @@ else
   fi
 fi
 
-states=()
-shown=()
-found=0
-i=1
-while [ "$i" -le "$n" ]; do
-  s="$(state "$i")"
-  states+=("$s")
-  if [ "$s" != "clean" ]; then shown+=("$i"); fi
-  if [ "$s" = "findings" ] || [ "$s" = "error" ]; then found=1; fi
-  i=$((i + 1))
-done
-
-{
-  echo "<!-- deadvalues -->"
-  echo "## deadvalues"
-  echo
-  if [ -n "$blocker" ]; then
-    echo "> [!CAUTION]"
-    echo "> $blocker"
-    echo
-  elif [ "$found" -eq 1 ]; then
-    if [ "$status" -ge 2 ]; then
-      echo "> [!CAUTION]"
-      echo "> deadvalues could not analyze everything, see the errors below."
-    elif [ "$status" -eq 1 ]; then
-      echo "> [!CAUTION]"
-      echo "> Findings at the fail-on level."
-    else
-      echo "> [!WARNING]"
-      echo "> Findings below the fail-on level, nothing fails."
-    fi
-    echo ">"
-    for i in ${shown[@]+"${shown[@]}"}; do summary "$i"; done
-    echo
-  fi
-  if [ -n "$note" ]; then
-    echo "> [!NOTE]"
-    echo "> $note"
-    echo
-  fi
-  if [ -n "$base_line" ]; then
-    echo "$base_line · [Docs]($docs)"
-  else
-    echo "[Docs]($docs)"
-  fi
-  echo
-  i=1
-  while [ "$i" -le "$n" ]; do
-    rc="$(cat "$work/$i.rc")"
-    case "${states[$((i - 1))]}" in
-      error) mark=":x: " ;;
-      findings) if [ "$rc" -eq 1 ]; then mark=":x: "; else mark=":warning: "; fi ;;
-      clean) mark=":white_check_mark: " ;;
-      *) mark="" ;;
-    esac
-    echo "- $mark\`$(cat "$work/$i.cmd")\`"
-    i=$((i + 1))
-  done
-  echo
-  if [ "$n" -gt 0 ] && [ "${#shown[@]}" -eq 0 ]; then
-    echo "No findings."
-    echo
-  fi
-  for i in ${shown[@]+"${shown[@]}"}; do
-    echo "---"
-    echo
-    echo "**\`$(cat "$work/$i.cmd")\`**"
-    echo
-    section "$i"
-  done
-} > "$report"
+summary > "$report"
 
 case "$status" in
   0) echo "deadvalues: nothing at or above the fail-on levels" ;;

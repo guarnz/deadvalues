@@ -90,36 +90,42 @@ What runs, by `mode`:
 
 ## Report
 
-The job summary and the pull request comment open with a GitHub alert, list every command that ran, then show only the commands with something to report:
+The job summary and the pull request comment show the findings of every command together, one section per app, and leave out apps with nothing to report:
 
-```
+````
 ## deadvalues
 
 > [!CAUTION]
-> Findings at the fail-on level.
->
-> - `diff`: 1 breaking, 1 pinned, 1 changed, 1 fixed
+> 1 breaking change: a chart upgrade stops reading a key you set. The check fails.
 
-Base: `0bc7546` (the commit before the push) · Docs
+Summary:
 
-- :x: `deadvalues diff apps --base 0bc7546… --fail-on breaking`
-- :white_check_mark: `deadvalues scan apps --changed-since 0bc7546… --details --fail-on none`
-
-**`deadvalues diff apps --base 0bc7546… --fail-on breaking`**
-
-### `one` — cases 0.1.0 → 0.2.0
-| Change | Key | Detail | Source |
-| **BREAKING** | `labels.team` | ALIVE → DEAD | values/one.yaml:10 |
+```yaml
+Breaking (1):
+✗ example  labels.team
+Changed (1):
+± example  revisionHistoryLimit
 ```
 
-| Alert | When |
-|---|---|
-| `CAUTION` | Findings at the fail-on level, an error, or nothing could run |
-| `WARNING` | Findings below the fail-on level; nothing fails |
-| `NOTE` | There was no base, so every app was scanned |
-| none | No findings: the report says "No findings." |
+<details open><summary><b>example</b> (apps/example.yaml) · chart 0.1.0 → 0.2.0</summary>
 
-Each command is marked :x: (fails the check or errored), :warning: (findings that do not fail) or :white_check_mark: (clean). The comment is posted only on pull requests, and updated on every push instead of adding a new one. On push the report is in the job summary. Deciding which commands have findings needs `jq`, which GitHub-hosted runners have; without it every command is shown.
+| Finding | Key | Detail |
+|---|---|---|
+| **BREAKING** | `labels.team` | ALIVE → DEAD · config/example/values.yaml:10 |
+| CHANGED | `revisionHistoryLimit` | default 10 → 5 (you do not set it; the manifests change) |
+</details>
+
+<details><summary>Commands</summary> … </details>
+
+_Stats_: [Apps: 1], [Renders: 120], [Run: 1s], [Base: 0bc7546] · Run · Docs
+````
+
+- The summary groups the findings from the most to the least severe: breaking, error, pinned, dead, changed, fixed, redundant, conditional. A key the `diff` reports is not repeated from the `scan`.
+- An app section opens by default when it has a breaking change or an error. Sources link to the file and line of the commit.
+- A `CAUTION` alert appears only when the check fails; a `NOTE` when there was no base, so every app was scanned. Without findings the report says "No findings in the changed apps."
+- The comment is posted only on pull requests, and updated on every push instead of adding a new one. On push the report is in the job summary.
+
+The findings are read from the JSON output with `jq`, which GitHub-hosted runners have. A command without a JSON report, such as `explain` in `args`, is shown after the findings with its output, and a command that fails, with its errors. Without `jq`, every command is shown that way.
 
 ## Versions
 
