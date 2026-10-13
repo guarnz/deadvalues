@@ -38,7 +38,7 @@ Only the keys of the requested files are reported.
 
 ## Shared values files
 
-A file several apps load, such as a `global-values.yaml`, is judged against all of them: a key is dead only if no app uses it. `-f` and `scan` apply this rule. `check --app` sees one app only, so it shows the keys of such a file as `SHARED` and points to `scan`; the search for the other apps covers the whole repository, Argo CD and Flux.
+A file several apps load, such as a `global-values.yaml`, is judged against all of them: a key is dead only if no app uses it. `-f` and `scan` apply this rule. With `scan --changed-since`, apps that did not change but load a values file of a changed app are analyzed too, only to judge the keys of that file; they are not reported. `check --app` sees one app only, so it shows the keys of such a file as `SHARED` and points to `scan`; the search for the other apps covers the whole repository, Argo CD and Flux.
 
 `prune` removes a key from a file only when every analyzed app that loads the file agrees it has no effect. `prune --app` never edits a values file that another app anywhere in the repository (Argo CD or Flux) also loads; it points you to `prune -f <file>`, which judges the file against all of them. Values embedded in a manifest, such as a HelmRelease's `spec.values`, belong to that release only.
 

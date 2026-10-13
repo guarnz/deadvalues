@@ -72,11 +72,20 @@ reported as ERROR in the summary.`,
 			if err != nil {
 				return &exitError{code: 2, err: err}
 			}
+			var picked, others []job
 			for _, j := range jobs {
-				if changed != nil && !affected(j.appFile, []job{j}, changed) {
-					continue
+				if changed == nil || affected(j.appFile, []job{j}, changed) {
+					picked = append(picked, j)
+				} else {
+					others = append(others, j)
 				}
+			}
+			for _, j := range picked {
 				reports = append(reports, g.check(cmd.Context(), j))
+			}
+			var neighbours []*report.Check
+			for _, j := range sharingValues(others, picked) {
+				neighbours = append(neighbours, g.check(cmd.Context(), j))
 			}
 
 			if len(reports) == 0 {
@@ -85,7 +94,7 @@ reported as ERROR in the summary.`,
 					return nil
 				}
 			}
-			report.ResolveShared(reports)
+			report.ResolveShared(append(slices.Clone(reports), neighbours...))
 			err = g.emit(func(w *report.Writer) error {
 				w.Details = details
 				return w.Checks(reports, true)
@@ -148,6 +157,27 @@ func affected(appFile string, jobs []job, changed map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+// sharingValues returns the jobs among others that load a values file of
+// picked: they only help judge the keys of shared files and are not reported.
+func sharingValues(others, picked []job) []job {
+	files := map[string]bool{}
+	for _, j := range picked {
+		for _, src := range j.vals.Sources {
+			files[normPath(src)] = true
+		}
+	}
+	var out []job
+	for _, j := range others {
+		for _, src := range j.vals.Sources {
+			if files[normPath(src)] {
+				out = append(out, j)
+				break
+			}
+		}
+	}
+	return out
 }
 
 func normPath(p string) string {
