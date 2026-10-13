@@ -50,6 +50,8 @@ Both sides are extracted with `git archive`, so your working tree is never touch
 
 A ref that does not exist locally is looked up on `origin` (`--head renovate/example` finds `origin/renovate/example`); other remotes need the full name. In a fork, where `origin` is your copy, pass the real base explicitly, e.g. `--base upstream/main`.
 
+`scan --changed-since <ref>` compares with the point where the branch left `<ref>` (their merge base), as a pull request does, so changes that reached `<ref>` after the branch started are not counted.
+
 It does not matter where the bump happened: an Application's `targetRevision`, a HelmRelease `version`, an `OCIRepository` tag or an overlay patch.
 
 With `-f` alone, the comparison runs for every Application and HelmRelease that loads those values files. A values file that no manifest loads has no chart version in git; use `--chart` with `--from` and `--to` for it.

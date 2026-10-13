@@ -207,11 +207,15 @@ func RepoRoot(path string) string {
 	return filepath.FromSlash(strings.TrimSpace(string(out)))
 }
 
-// ChangedFiles lists files changed between rev and the working tree,
-// as absolute paths.
+// ChangedFiles lists files changed in the working tree since it left rev
+// (their merge base, or rev itself in a shallow clone), as absolute paths.
 func ChangedFiles(repoRoot, rev string) (map[string]bool, error) {
+	from := rev
+	if out, err := exec.Command("git", "-C", repoRoot, "merge-base", rev, "HEAD").Output(); err == nil {
+		from = strings.TrimSpace(string(out))
+	}
 	var stderr bytes.Buffer
-	cmd := exec.Command("git", "-C", repoRoot, "diff", "--name-only", rev)
+	cmd := exec.Command("git", "-C", repoRoot, "diff", "--name-only", from)
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
