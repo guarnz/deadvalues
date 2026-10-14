@@ -56,6 +56,19 @@ example  webapp 0.1.0 → 0.2.0
   1 breaking, 1 pinned, 1 changed, 1 fixed
 ```
 
+## Compared with helm-diff and argocd-diff-preview
+
+[helm-diff](https://github.com/databus23/helm-diff) and [argocd-diff-preview](https://github.com/dag-andersen/argocd-diff-preview) show what the rendered manifests will look like. deadvalues shows whether your values still do what you think they do.
+
+| Situation | Manifest diff | deadvalues |
+|---|---|---|
+| A chart upgrade stops reading a key you set | The field leaves the manifest, among the rest of the upgrade; you work out the cause | `BREAKING labels.team ALIVE → DEAD` |
+| A default changes and your value holds the old one | Nothing: the manifest does not change | `PINNED service.type` |
+| A typo that never had an effect | Nothing: an ignored key changes nothing | `DEAD service.prot` |
+| A value equal to the chart default | Nothing | `REDUNDANT image.repository` |
+
+Use both: the diff shows what the cluster gets, deadvalues shows which line of your values file caused it, or did nothing.
+
 ## Install
 
 | Method | Command |
