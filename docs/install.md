@@ -2,7 +2,18 @@
 
 ## Binary
 
-Download the archive for your system from the [releases](https://github.com/guarnz/deadvalues/releases): `deadvalues_<os>_<arch>.tar.gz` for Linux and macOS, `.zip` for Windows, in `amd64` and `arm64`. It holds a single static binary; put it somewhere on your `PATH`.
+Download the latest release for your system:
+
+- [Linux amd64](https://github.com/guarnz/deadvalues/releases/latest/download/deadvalues_linux_amd64.tar.gz) (Intel or AMD)
+- [Linux arm64](https://github.com/guarnz/deadvalues/releases/latest/download/deadvalues_linux_arm64.tar.gz) (Raspberry Pi, Graviton, Ampere)
+- [macOS arm64](https://github.com/guarnz/deadvalues/releases/latest/download/deadvalues_darwin_arm64.tar.gz) (Apple silicon, M1 and later)
+- [macOS amd64](https://github.com/guarnz/deadvalues/releases/latest/download/deadvalues_darwin_amd64.tar.gz) (Intel)
+- [Windows amd64](https://github.com/guarnz/deadvalues/releases/latest/download/deadvalues_windows_amd64.zip) (Intel or AMD)
+- [Windows arm64](https://github.com/guarnz/deadvalues/releases/latest/download/deadvalues_windows_arm64.zip) (Snapdragon)
+
+Not sure which one? Run `uname -m` on Linux or macOS (`x86_64` is amd64, `aarch64` or `arm64` is arm64), or `$env:PROCESSOR_ARCHITECTURE` in PowerShell (`AMD64` or `ARM64`). Older versions are on the [releases](https://github.com/guarnz/deadvalues/releases) page.
+
+Each archive holds a single static binary; put it somewhere on your `PATH`.
 
 On macOS, a binary downloaded with a browser is quarantined by Gatekeeper. Remove the flag before the first run:
 

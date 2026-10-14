@@ -73,7 +73,7 @@ Use both: the diff shows what the cluster gets, deadvalues shows which line of y
 
 | Method | Command |
 |---|---|
-| Binary | Download from the [releases](https://github.com/guarnz/deadvalues/releases) (Linux, macOS, Windows; amd64 and arm64) |
+| Binary | Download the [file for your system](https://github.com/guarnz/deadvalues/blob/main/docs/install.md#binary) (Linux, macOS, Windows) |
 | Go 1.26+ | `go install github.com/guarnz/deadvalues/cmd/deadvalues@latest` |
 | Helm plugin | `helm plugin install https://github.com/guarnz/deadvalues` (Helm 4: add `--verify=false`) |
 | Container | `docker run --rm -v "$PWD:/repo" ghcr.io/guarnz/deadvalues scan apps` |

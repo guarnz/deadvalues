@@ -74,6 +74,19 @@ git:
     - "{{ if not .Prerelease }}*-*{{ end }}"
 release:
   prerelease: auto
+  header: |
+    Download deadvalues {{ .Tag }} for your system:
+
+    - [Linux amd64](https://github.com/guarnz/deadvalues/releases/download/{{ .Tag }}/deadvalues_linux_amd64.tar.gz) (Intel or AMD)
+    - [Linux arm64](https://github.com/guarnz/deadvalues/releases/download/{{ .Tag }}/deadvalues_linux_arm64.tar.gz) (Raspberry Pi, Graviton, Ampere)
+    - [macOS arm64](https://github.com/guarnz/deadvalues/releases/download/{{ .Tag }}/deadvalues_darwin_arm64.tar.gz) (Apple silicon, M1 and later)
+    - [macOS amd64](https://github.com/guarnz/deadvalues/releases/download/{{ .Tag }}/deadvalues_darwin_amd64.tar.gz) (Intel)
+    - [Windows amd64](https://github.com/guarnz/deadvalues/releases/download/{{ .Tag }}/deadvalues_windows_amd64.zip) (Intel or AMD)
+    - [Windows arm64](https://github.com/guarnz/deadvalues/releases/download/{{ .Tag }}/deadvalues_windows_arm64.zip) (Snapdragon)
+
+    `checksums.txt` is signed with cosign by this repository's release workflow (keyless, bundle in `checksums.txt.sigstore.json`). To verify a download, see [verifying a release](https://github.com/guarnz/deadvalues/blob/main/docs/install.md#verifying-a-release).
+
+    Other ways to install (Go, Helm plugin from [Artifact Hub](https://artifacthub.io/packages/helm-plugin/deadvalues/deadvalues), container image): see the [install guide](https://github.com/guarnz/deadvalues/blob/main/docs/install.md).
 changelog:
   use: github
   format: "{{ .SHA }}: {{ .Message }}{{ with .AuthorUsername }} (@{{ . }}){{ end }}"
