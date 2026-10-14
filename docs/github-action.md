@@ -93,26 +93,30 @@ What runs, by `mode`:
 The job summary and the pull request comment show the findings of every command together, one section per app, and leave out apps with nothing to report:
 
 ````
-## deadvalues
+## Deadvalues
 
 > [!CAUTION]
 > 1 breaking change: a chart upgrade stops reading a key you set. The check fails.
 
 Summary:
 
-```yaml
-Breaking (1):
-✗ example  labels.team
-Changed (1):
+```diff
+Findings (1 app):
+- example  1 breaking · 1 changed
+
+Breaking:
+- example  labels.team
+
+Changed:
 ± example  revisionHistoryLimit
 ```
 
 <details open><summary><b>example</b> (apps/example.yaml) · chart 0.1.0 → 0.2.0</summary>
 
-| Finding | Key | Detail |
-|---|---|---|
-| **BREAKING** | `labels.team` | ALIVE → DEAD · config/example/values.yaml:10 |
-| CHANGED | `revisionHistoryLimit` | default 10 → 5 (you do not set it; the manifests change) |
+| Finding | Key | Detail | Line |
+|---|---|---|---|
+| **BREAKING** | `labels.team` | ALIVE → DEAD | values.yaml:10 |
+| CHANGED | `revisionHistoryLimit` | default 10 → 5 (you do not set it; the manifests change) | |
 </details>
 
 <details><summary>Commands</summary> … </details>
@@ -120,8 +124,9 @@ Changed (1):
 _Stats_: [Apps: 1], [Renders: 120], [Run: 1s], [Base: 0bc7546] · Run · Docs
 ````
 
-- The summary groups the findings from the most to the least severe: breaking, error, pinned, dead, changed, fixed, redundant, conditional. A key the `diff` reports is not repeated from the `scan`.
-- An app section opens by default when it has a breaking change or an error. Sources link to the file and line of the commit.
+- The summary starts with one line per app and its counts, then lists the keys from the most to the least severe: breaking, error, pinned, dead, changed, fixed, redundant, conditional. A key the `diff` reports is not repeated from the `scan`.
+- The summary is a `diff` block, so GitHub colors it: an app line is red with a breaking change or an error, orange with a pinned or dead key, and green otherwise. A key line is red for breaking and error, orange for pinned and dead, green for fixed, and plain for the rest.
+- An app section opens by default when it has a breaking change or an error. The Line column links to the file and line of the commit.
 - A `CAUTION` alert appears only when the check fails; a `NOTE` when there was no base, so every app was scanned. Without findings the report says "No findings in the changed apps."
 - The comment is posted only on pull requests, and updated on every push instead of adding a new one. On push the report is in the job summary.
 

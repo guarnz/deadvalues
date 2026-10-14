@@ -59,29 +59,36 @@ EOF
 )
 
 body_jq=$(cat <<'EOF'
-def mark: if . <= 1 then "✗" elif . <= 3 then "!" else "±" end;
+def mark: if . <= 1 then "-" elif . <= 3 then "!" elif . == 5 then "+" else "±" end;
+def light: if . <= 1 then "-" elif . <= 3 then "!" else "+" end;
 def heading: .[0:1] + (.[1:] | ascii_downcase);
 def cell: gsub("\\|"; "\\|") | gsub("\n"; " ") | gsub("  +"; " ");
 def pad($w): . + (if $w > length then " " * ($w - length) else "" end);
 def src: if . == null or (.file // "") == "" then ""
-  else (.file | rel) as $f | (if .line then "\($f):\(.line)" else $f end) as $t
-  | if $blob != "" then " · [\($t)](\($blob)/\($f)\(if .line then "#L\(.line)" else "" end))" else " · `\($t)`" end end;
+  else (.file | rel) as $f | (($f | split("/") | last) + (if .line then ":\(.line)" else "" end)) as $t
+  | if $blob != "" then "[\($t)](\($blob)/\($f)\(if .line then "#L\(.line)" else "" end))" else "`\($t)`" end end;
 ($rows | map(.app | length) | max // 0) as $w
+| ($rows | group_by(.app) | sort_by((map(.rank) | min), .[0].app)) as $apps
+| ($apps | map(
+    "\(map(.rank) | min | light) \(.[0].app | pad($w))  "
+    + (group_by(.rank) | map("\(length) \(.[0].kind | ascii_downcase)") | join(" · "))
+  ) | join("\n")) as $byapp
 | ($rows | group_by(.rank) | map(
-    "\(.[0].kind | heading) (\(length)):\n"
+    "\(.[0].kind | heading):\n"
     + (map("\(.rank | mark) \(.app | pad($w))  \(if .key != "" then .key else "not analyzed" end)") | join("\n"))
-  ) | join("\n")) as $summary
-| ($rows | group_by(.app) | sort_by((map(.rank) | min), .[0].app) | map(
+  ) | join("\n\n")) as $groups
+| "Findings (\($apps | length) app\(if ($apps | length) == 1 then "" else "s" end)):\n\($byapp)\n\n\($groups)" as $summary
+| ($apps | map(
     (map(select(.head | startswith("chart "))) | first // null) as $bump
     | (if $bump != null then $bump.head else .[0].head end) as $head
     | "<details\(if any(.rank <= 1) then " open" else "" end)><summary><b>\(.[0].app)</b>"
       + (if .[0].file != "" then " (\(.[0].file | rel))" else "" end)
       + (if $head != "" then " · \($head)" else "" end) + "</summary>\n\n"
-      + "| Finding | Key | Detail |\n|---|---|---|\n"
-      + (sort_by(.rank) | map("| \(if .rank <= 1 then "**\(.kind)**" else .kind end) | \(if .key != "" then "`\(.key)`" else "" end) | \(.detail | cell)\(.src | src) |") | join("\n"))
+      + "| Finding | Key | Detail | Line |\n|---|---|---|---|\n"
+      + (sort_by(.rank) | map("| \(if .rank <= 1 then "**\(.kind)**" else .kind end) | \(if .key != "" then "`\(.key)`" else "" end) | \(.detail | cell) | \(.src | src) |") | join("\n"))
       + "\n</details>"
   ) | join("\n\n")) as $details
-| "Summary:\n\n```yaml\n\($summary)\n```\n\n\($details)\n"
+| "Summary:\n\n```diff\n\($summary)\n```\n\n\($details)\n"
 EOF
 )
 
@@ -128,7 +135,7 @@ summary() {
   footer="${footer}[Docs]($docs)"
 
   echo "<!-- deadvalues -->"
-  echo "## deadvalues"
+  echo "## Deadvalues"
   echo
   if [ -n "$blocker" ]; then
     printf '> [!CAUTION]\n> %s\n\n' "$blocker"
