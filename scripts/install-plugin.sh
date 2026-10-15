@@ -27,8 +27,8 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 echo "Downloading ${url}"
-curl -fsSL -o "$tmp/$asset" "$url"
-curl -fsSL -o "$tmp/checksums.txt" "$sums"
+curl -fsSL --proto '=https' --proto-redir '=https' -o "$tmp/$asset" "$url"
+curl -fsSL --proto '=https' --proto-redir '=https' -o "$tmp/checksums.txt" "$sums"
 
 expected="$(grep " ${asset}\$" "$tmp/checksums.txt" | cut -d' ' -f1)"
 if command -v sha256sum >/dev/null 2>&1; then
