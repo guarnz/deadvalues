@@ -5,6 +5,7 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -246,7 +247,7 @@ func findingDetail(f probe.Finding) string {
 		if !f.HasDefault {
 			return short(f.Value) + "  (key not in chart values.yaml)"
 		}
-		return short(f.Value) + "  (chart default " + short(f.Default) + "; no effect with the current values)"
+		return short(f.Value) + "  (chart default " + outline(f.Default) + "; no effect with the current values)"
 	case probe.Conditional:
 		if len(f.RequiresAPI) > 0 {
 			return short(f.Value) + "  (only when the cluster serves " + strings.Join(f.RequiresAPI, " + ") + ")"
@@ -405,8 +406,36 @@ func short(v interface{}) string {
 	if err != nil {
 		return fmt.Sprint(v)
 	}
-	if len(b) > 60 {
-		return string(b[:57]) + "..."
+	return truncate(string(b))
+}
+
+// outline names a map by its keys and a list by its length, so a sentence
+// does not carry a whole JSON object.
+func outline(v interface{}) string {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		if len(t) > 0 {
+			keys := make([]string, 0, len(t))
+			for k := range t {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			return truncate("{" + strings.Join(keys, ", ") + "}")
+		}
+	case []interface{}:
+		if len(t) == 1 {
+			return "[1 item]"
+		}
+		if len(t) > 1 {
+			return fmt.Sprintf("[%d items]", len(t))
+		}
 	}
-	return string(b)
+	return short(v)
+}
+
+func truncate(s string) string {
+	if len(s) > 60 {
+		return s[:57] + "..."
+	}
+	return s
 }
