@@ -84,7 +84,7 @@ release:
     - [Windows amd64](https://github.com/guarnz/deadvalues/releases/download/{{ .Tag }}/deadvalues_windows_amd64.zip) (Intel or AMD)
     - [Windows arm64](https://github.com/guarnz/deadvalues/releases/download/{{ .Tag }}/deadvalues_windows_arm64.zip) (Snapdragon)
 
-    `checksums.txt` is signed with cosign by this repository's release workflow (keyless, bundle in `checksums.txt.sigstore.json`). To verify a download, see [verifying a release](https://github.com/guarnz/deadvalues/blob/main/docs/install.md#verifying-a-release).
+    Every release is signed with cosign: [how to verify a download](https://github.com/guarnz/deadvalues/blob/main/docs/install.md#verifying-a-release).
 
     Other ways to install (Go, Helm plugin from [Artifact Hub](https://artifacthub.io/packages/helm-plugin/deadvalues/deadvalues), container image): see the [install guide](https://github.com/guarnz/deadvalues/blob/main/docs/install.md).
 changelog:
