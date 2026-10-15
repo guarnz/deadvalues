@@ -37,7 +37,7 @@ dv() {
   cat "$id.err" >&2
   echo "::endgroup::"
   echo "$rc" > "$id.rc"
-  if [ "$rc" -gt "$status" ]; then status=$rc; fi
+  if [[ "$rc" -gt "$status" ]]; then status=$rc; fi
 }
 
 rows_jq=$(cat <<'EOF'
@@ -97,12 +97,12 @@ stats_jq='"[Apps: \($reports | map(select((.renders // 0) > 0 or (.error // "") 
 # output prints what the command with id $1 wrote and, when it failed, its errors.
 output() {
   local id="$work/$1"
-  if [ -s "$id.md" ]; then
+  if [[ -s "$id.md" ]]; then
     cat "$id.md"
-  elif [ -s "$id.out" ]; then
+  elif [[ -s "$id.out" ]]; then
     printf '%stext\n%s\n%s\n\n' "$fence" "$(cat "$id.out")" "$fence"
   fi
-  if [ "$(cat "$id.rc")" -ge 2 ] && [ -s "$id.err" ]; then
+  if [[ "$(cat "$id.rc")" -ge 2 ]] && [[ -s "$id.err" ]]; then
     printf '%stext\n%s\n%s\n\n' "$fence" "$(cat "$id.err")" "$fence"
   fi
 }
@@ -114,55 +114,55 @@ summary() {
   local jsons=() others=() has_jq=1
   command -v jq >/dev/null || has_jq=0
   for ((i = 1; i <= n; i++)); do
-    if [ "$has_jq" -eq 1 ] && [ -s "$work/$i.json" ]; then jsons+=("$work/$i.json"); else others+=("$i"); fi
+    if [[ "$has_jq" -eq 1 ]] && [[ -s "$work/$i.json" ]]; then jsons+=("$work/$i.json"); else others+=("$i"); fi
   done
-  if [ -n "${GITHUB_SERVER_URL:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+  if [[ -n "${GITHUB_SERVER_URL:-}" ]] && [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
     blob="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/${GITHUB_SHA:-HEAD}"
-    if [ -n "${GITHUB_RUN_ID:-}" ]; then run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi
+    if [[ -n "${GITHUB_RUN_ID:-}" ]]; then run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi
   fi
   q() { jq -rs --arg ws "${GITHUB_WORKSPACE:-}" --arg blob "$blob" "$rows_jq | $1" "${jsons[@]}"; }
-  if [ "${#jsons[@]}" -gt 0 ]; then
+  if [[ "${#jsons[@]}" -gt 0 ]]; then
     rows="$(q '$rows | length')"
     breaking="$(q '$rows | map(select(.kind == "BREAKING")) | length')"
     stats="$(q "$stats_jq")"
   fi
 
   footer="_Stats_: "
-  if [ -n "$stats" ]; then footer="$footer$stats"; fi
-  if [ -n "$base" ]; then footer="${footer}${stats:+, }[Base: ${base:0:7}]"; fi
-  if [ "$footer" = "_Stats_: " ]; then footer=""; else footer="$footer · "; fi
-  if [ -n "$run" ]; then footer="${footer}[Run]($run) · "; fi
+  if [[ -n "$stats" ]]; then footer="$footer$stats"; fi
+  if [[ -n "$base" ]]; then footer="${footer}${stats:+, }[Base: ${base:0:7}]"; fi
+  if [[ "$footer" = "_Stats_: " ]]; then footer=""; else footer="$footer · "; fi
+  if [[ -n "$run" ]]; then footer="${footer}[Run]($run) · "; fi
   footer="${footer}[Docs]($docs)"
 
   echo "<!-- deadvalues -->"
   echo "## Deadvalues"
   echo
-  if [ -n "$blocker" ]; then
+  if [[ -n "$blocker" ]]; then
     printf '> [!CAUTION]\n> %s\n\n' "$blocker"
-  elif [ "$status" -ge 2 ]; then
+  elif [[ "$status" -ge 2 ]]; then
     printf '> [!CAUTION]\n> deadvalues could not analyze everything, see the errors below. The check fails.\n\n'
-  elif [ "$status" -eq 1 ]; then
-    if [ "${breaking:-0}" -eq 1 ]; then
+  elif [[ "$status" -eq 1 ]]; then
+    if [[ "${breaking:-0}" -eq 1 ]]; then
       printf '> [!CAUTION]\n> 1 breaking change: a chart upgrade stops reading a key you set. The check fails.\n\n'
-    elif [ "${breaking:-0}" -gt 1 ]; then
+    elif [[ "${breaking:-0}" -gt 1 ]]; then
       printf '> [!CAUTION]\n> %s breaking changes: a chart upgrade stops reading keys you set. The check fails.\n\n' "$breaking"
     else
       printf '> [!CAUTION]\n> Findings at the fail-on level. The check fails.\n\n'
     fi
   fi
-  if [ -n "$note" ]; then printf '> [!NOTE]\n> %s\n\n' "$note"; fi
-  if [ "$has_jq" -eq 0 ] && [ "$n" -gt 0 ]; then
+  if [[ -n "$note" ]]; then printf '> [!NOTE]\n> %s\n\n' "$note"; fi
+  if [[ "$has_jq" -eq 0 ]] && [[ "$n" -gt 0 ]]; then
     printf '> [!NOTE]\n> jq is not installed on the runner, so the findings are shown per command.\n\n'
   fi
 
-  if [ "${rows:-0}" -gt 0 ]; then
+  if [[ "${rows:-0}" -gt 0 ]]; then
     q "$body_jq"
-  elif [ "$n" -gt 0 ] && [ "${#others[@]}" -eq 0 ]; then
-    if [ -n "$base" ]; then echo "No findings in the changed apps."; else echo "No findings."; fi
+  elif [[ "$n" -gt 0 ]] && [[ "${#others[@]}" -eq 0 ]]; then
+    if [[ -n "$base" ]]; then echo "No findings in the changed apps."; else echo "No findings."; fi
     echo
   fi
   for i in ${others[@]+"${others[@]}"}; do
-    if [ "$(cat "$work/$i.rc")" -ge 2 ]; then
+    if [[ "$(cat "$work/$i.rc")" -ge 2 ]]; then
       printf '<details open><summary>✗ <code>%s</code> failed</summary>\n\n' "$(cat "$work/$i.cmd")"
       output "$i"
       printf '</details>\n\n'
@@ -173,10 +173,10 @@ summary() {
     fi
   done
 
-  if [ "$n" -gt 0 ]; then
+  if [[ "$n" -gt 0 ]]; then
     printf '<details><summary>Commands</summary>\n\n'
     for ((i = 1; i <= n; i++)); do
-      if [ -n "$base" ]; then
+      if [[ -n "$base" ]]; then
         echo "- \`$(sed "s/$base/${base:0:7}/g" "$work/$i.cmd")\`"
       else
         echo "- \`$(cat "$work/$i.cmd")\`"
@@ -196,19 +196,19 @@ case "$MODE" in
 esac
 
 base=""
-if [ -z "${ARGS:-}" ]; then
-  if [ -n "${BASE_INPUT:-}" ]; then
+if [[ -z "${ARGS:-}" ]]; then
+  if [[ -n "${BASE_INPUT:-}" ]]; then
     base="$BASE_INPUT"
   else
     from=""
-    if [ -n "${PR_BASE:-}" ]; then
+    if [[ -n "${PR_BASE:-}" ]]; then
       base="$PR_BASE"
       from="the pull request base"
-    elif [ -n "${PUSH_BEFORE:-}" ] && [ "$PUSH_BEFORE" != "$zero" ]; then
+    elif [[ -n "${PUSH_BEFORE:-}" ]] && [[ "$PUSH_BEFORE" != "$zero" ]]; then
       base="$PUSH_BEFORE"
       from="the commit before the push"
     fi
-    if [ -n "$base" ]; then
+    if [[ -n "$base" ]]; then
       if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
         git fetch --no-tags --depth=1 origin "$base" >/dev/null 2>&1 || true
       fi
@@ -221,26 +221,26 @@ if [ -z "${ARGS:-}" ]; then
 fi
 
 diff_fail=()
-if [ -n "${FAIL_ON_DIFF:-}" ]; then diff_fail=(--fail-on "$FAIL_ON_DIFF"); fi
+if [[ -n "${FAIL_ON_DIFF:-}" ]]; then diff_fail=(--fail-on "$FAIL_ON_DIFF"); fi
 scan_fail=()
-if [ -n "${FAIL_ON_SCAN:-}" ]; then scan_fail=(--fail-on "$FAIL_ON_SCAN"); fi
+if [[ -n "${FAIL_ON_SCAN:-}" ]]; then scan_fail=(--fail-on "$FAIL_ON_SCAN"); fi
 
-if [ -n "${ARGS:-}" ]; then
+if [[ -n "${ARGS:-}" ]]; then
   read -ra argv <<< "$ARGS"
   dv "${argv[@]}"
-elif [ "$MODE" = "diff" ] && [ -z "$base" ]; then
+elif [[ "$MODE" = "diff" ]] && [[ -z "$base" ]]; then
   echo "::error title=deadvalues::mode diff needs a base: run on pull_request or push, or set the base input"
   blocker="Nothing ran: mode \`diff\` needs a base. Run on \`pull_request\` or \`push\`, or set the \`base\` input."
   status=2
 else
-  if [ -n "$base" ] && [ "$MODE" != "scan" ]; then
+  if [[ -n "$base" ]] && [[ "$MODE" != "scan" ]]; then
     dv diff "$APPS" --base "$base" ${diff_fail[@]+"${diff_fail[@]}"}
   fi
-  if [ "$MODE" != "diff" ]; then
-    if [ -n "$base" ]; then
+  if [[ "$MODE" != "diff" ]]; then
+    if [[ -n "$base" ]]; then
       dv scan "$APPS" --changed-since "$base" --details ${scan_fail[@]+"${scan_fail[@]}"}
     else
-      if [ -z "$note" ]; then note="No base to compare with (no pull request, or the first push of a branch)."; fi
+      if [[ -z "$note" ]]; then note="No base to compare with (no pull request, or the first push of a branch)."; fi
       note="$note Every app was scanned."
       dv scan "$APPS" --details ${scan_fail[@]+"${scan_fail[@]}"}
     fi

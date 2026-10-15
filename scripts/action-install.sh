@@ -12,10 +12,10 @@ repo=guarnz/deadvalues
 # release_tag prints the tag to download, or nothing for the latest release.
 release_tag() {
   local want="${VERSION:-}" ref="${ACTION_REF:-}"
-  if [ "$want" = "latest" ]; then
+  if [[ "$want" = "latest" ]]; then
     return
   fi
-  if [ -n "$want" ]; then
+  if [[ -n "$want" ]]; then
     echo "$want"
     return
   fi
@@ -25,7 +25,7 @@ release_tag() {
     local match
     match="$(gh release list -R "$repo" --exclude-drafts --exclude-pre-releases --limit 200 --json tagName --jq '.[].tagName' \
       | grep -E "^${ref//./\\.}\.[0-9]+(\.[0-9]+)?$" | sort -V | tail -n 1 || true)"
-    if [ -z "$match" ]; then
+    if [[ -z "$match" ]]; then
       echo "no release matches $ref" >&2
       return 1
     fi
@@ -50,7 +50,7 @@ mkdir -p "$dir"
 
 want="$(release_tag)"
 tag=()
-if [ -n "$want" ]; then tag=("$want"); fi
+if [[ -n "$want" ]]; then tag=("$want"); fi
 echo "downloading deadvalues ${want:-latest} (action ref: ${ACTION_REF:-none})"
 gh release download ${tag[@]+"${tag[@]}"} -R "$repo" -p "$asset" -p checksums.txt -D "$dir" --clobber
 sha=(sha256sum)
