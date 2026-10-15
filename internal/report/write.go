@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -276,7 +277,7 @@ func (w *Writer) checkTable(c *Check) {
 
 	var shown []Key
 	width := 0
-	for _, k := range c.Keys {
+	for _, k := range bySeverity(c.Keys) {
 		if k.Ignored || k.UsedBy != "" || (k.status.Effective() && !w.Alive) {
 			continue
 		}
@@ -300,6 +301,16 @@ func (w *Writer) checkTable(c *Check) {
 		fmt.Fprintln(w.Out)
 	}
 	fmt.Fprintln(w.Out, "  "+w.counts(c))
+}
+
+var severity = map[string]int{"DEAD": 0, "SHARED": 1, "CONDITIONAL": 2, "REDUNDANT": 3, "ERROR": 4, "GROUP": 5, "ALIVE": 6}
+
+// bySeverity returns the keys with the most severe status first, keeping the
+// key order within each status.
+func bySeverity(keys []Key) []Key {
+	out := append([]Key(nil), keys...)
+	sort.SliceStable(out, func(i, j int) bool { return severity[out[i].Label()] < severity[out[j].Label()] })
+	return out
 }
 
 func (w *Writer) counts(c *Check) string {
@@ -395,7 +406,7 @@ func (w *Writer) checksMarkdown(cs []*Check, scan bool) {
 			fmt.Fprintf(w.Out, "> **Note:** %s\n\n", mdEscape(n))
 		}
 		var rows []Key
-		for _, k := range c.Keys {
+		for _, k := range bySeverity(c.Keys) {
 			if !k.Ignored && k.UsedBy == "" && (!k.status.Effective() || w.Alive) {
 				rows = append(rows, k)
 			}
