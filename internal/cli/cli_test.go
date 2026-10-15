@@ -156,6 +156,21 @@ func TestCheckTableGolden(t *testing.T) {
 	}
 }
 
+func TestCheckMarkdownBySeverity(t *testing.T) {
+	out, _ := runCLI(t, "check", "--chart", casesChart, "-f", casesValues, "--release", "demo", "-o", "markdown")
+	var order []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "| ") && !strings.HasPrefix(line, "| Status") {
+			order = append(order, strings.TrimSpace(strings.Split(line, "|")[2]))
+		}
+	}
+	want := []string{"`service.prot`", "`ingress.host`", "`monitoring.serviceMonitor`", "`sub.size`",
+		"`image.repository`", "`ingress.enabled`", "`secretKey`", "`service.type`"}
+	if strings.Join(order, " ") != strings.Join(want, " ") {
+		t.Errorf("markdown rows = %v, want %v", order, want)
+	}
+}
+
 func TestFailOnAndIgnore(t *testing.T) {
 	if _, code := runCLI(t, "check", "--chart", casesChart, "-f", casesValues, "--fail-on", "none"); code != 0 {
 		t.Errorf("--fail-on none: exit %d, want 0", code)

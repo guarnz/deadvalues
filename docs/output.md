@@ -8,6 +8,7 @@
 - `sarif` feeds GitHub code scanning.
 - `github` prints workflow annotations on the exact line of the values file: `::error` for `BREAKING` and for a target that cannot be analyzed, `::notice` for `REDUNDANT` and `FIXED`, `::warning` for the rest.
 - `--details` (on `scan`) prints the per-key findings, not only the summary table.
+- In `table` and `markdown`, keys are listed by severity (`DEAD`, `SHARED`, `CONDITIONAL`, `REDUNDANT`, then the effective ones), alphabetically within each status; `diff` lists `BREAKING` first. `json` keeps every key in alphabetical order.
 
 ## Writing to files
 

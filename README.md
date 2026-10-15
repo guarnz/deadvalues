@@ -29,14 +29,14 @@ example  webapp 0.1.0  ←  config/example/values.yaml
 43 renders in 21ms, 1 random fields ignored
 note: list the APIs your cluster serves under apiVersions in .deadvalues.yaml to resolve API-dependent keys
 
-  REDUNDANT   image.repository           = chart default "nginx"
-  REDUNDANT   ingress.enabled            = chart default false
+  DEAD        service.prot               8080  (key not in chart values.yaml)
   CONDITIONAL ingress.host               "app.example.com"  (only when ingress.enabled=true)
   CONDITIONAL monitoring.serviceMonitor  true  (only when the cluster serves monitoring.coreos.com/v1/ServiceMonitor)
-  REDUNDANT   secretKey                  "SECRET"  (= fallback hardcoded in the template)
-  DEAD        service.prot               8080  (key not in chart values.yaml)
-  REDUNDANT   service.type               = chart default "ClusterIP"
   CONDITIONAL sub.size                   "large"  (only when sub.enabled=true)
+  REDUNDANT   image.repository           = chart default "nginx"
+  REDUNDANT   ingress.enabled            = chart default false
+  REDUNDANT   secretKey                  "SECRET"  (= fallback hardcoded in the template)
+  REDUNDANT   service.type               = chart default "ClusterIP"
 
   1 dead, 3 conditional, 4 redundant, 5 alive, 1 group, 1 required
 ```
