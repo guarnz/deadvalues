@@ -156,6 +156,52 @@ spec: {chart: podinfo, version: "6.5.0", sourceRef: {kind: HelmRepository, name:
 	}
 }
 
+func TestResolveAnchorsOutsideValues(t *testing.T) {
+	repo, err := ParseYAML([]byte("apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata: {name: http, namespace: ns}\nspec: {url: https://charts.example.com}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{Sources: &Index{Objects: repo}}
+	doc := []byte(`apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: &app web
+  namespace: ns
+spec:
+  chart: {spec: {chart: podinfo, sourceRef: {kind: HelmRepository, name: http}}}
+  values:
+    fullnameOverride: *app
+    labels: &labels {team: web}
+    podLabels: *labels
+`)
+	file := filepath.Join(t.TempDir(), "helm-release.yaml")
+	if err := os.WriteFile(file, doc, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fromFile, err := ParseFile(file, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromBuild, err := ParseYAML(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, objs := range map[string][]*Object{"file": fromFile, "build": fromBuild} {
+		out, err := r.Resolve(release(t, objs))
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if v, _ := values.Lookup(out.Values.Values, []string{"fullnameOverride"}); v != "web" {
+			t.Errorf("%s: fullnameOverride = %#v", name, v)
+		}
+		if v, _ := values.Lookup(out.Values.Values, []string{"podLabels", "team"}); v != "web" {
+			t.Errorf("%s: podLabels.team = %#v", name, v)
+		}
+	}
+}
+
 func TestRootsAndOverlayBuild(t *testing.T) {
 	root := fixture(t)
 	roots, err := Roots(filepath.Join(root, "apps"))

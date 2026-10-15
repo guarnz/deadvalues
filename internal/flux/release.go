@@ -264,7 +264,7 @@ func dataValue(o *Object, key string) (string, bool) {
 func decode(n *yaml.Node) (map[string]interface{}, error) {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
-	if err := enc.Encode(n); err != nil {
+	if err := enc.Encode(values.ResolveAliases(n)); err != nil {
 		return nil, err
 	}
 	if err := enc.Close(); err != nil {

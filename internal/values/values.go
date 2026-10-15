@@ -106,7 +106,7 @@ func (s *Set) AddSet(expr, origin string, forceString bool) error {
 func (s *Set) AddNode(n *yaml.Node, file string, doc int, prefix []string) error {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
-	if err := enc.Encode(n); err != nil {
+	if err := enc.Encode(ResolveAliases(n)); err != nil {
 		return err
 	}
 	if err := enc.Close(); err != nil {
@@ -125,6 +125,21 @@ func (s *Set) AddNode(n *yaml.Node, file string, doc int, prefix []string) error
 	s.addSource(origin.File)
 	s.manifests[origin.File] = true
 	return nil
+}
+
+// ResolveAliases copies n with every alias replaced by its anchored node, so
+// a block cut from a bigger document encodes without the anchors outside it.
+func ResolveAliases(n *yaml.Node) *yaml.Node {
+	if n.Kind == yaml.AliasNode && n.Alias != nil {
+		return ResolveAliases(n.Alias)
+	}
+	c := *n
+	c.Anchor = ""
+	c.Content = nil
+	for _, child := range n.Content {
+		c.Content = append(c.Content, ResolveAliases(child))
+	}
+	return &c
 }
 
 // AddAttributed merges m with origins computed per key, for values whose
