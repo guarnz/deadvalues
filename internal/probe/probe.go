@@ -261,10 +261,14 @@ func (p *prober) classify(path []string, sub interface{}) {
 }
 
 func (p *prober) sentinelChanges(path []string, v interface{}) bool {
-	mutated := values.CopyMap(p.User)
-	values.SetPath(mutated, path, sentinel(v))
-	changed, _ := p.differs(p.Render, mutated, p.base, p.noise)
-	return changed
+	for _, s := range sentinels(v) {
+		mutated := values.CopyMap(p.User)
+		values.SetPath(mutated, path, s)
+		if changed, _ := p.differs(p.Render, mutated, p.base, p.noise); changed {
+			return true
+		}
+	}
+	return false
 }
 
 // removalMatters reports whether removing path changes the output of the
@@ -399,6 +403,40 @@ func sentinel(v interface{}) interface{} {
 		return map[string]interface{}{"deadvalues-sentinel": "deadvalues-sentinel"}
 	default:
 		return "deadvalues-sentinel"
+	}
+}
+
+// sentinels returns the values to try in place of v. A list also gets a copy with
+// every leaf replaced, since an empty list often renders like a missing key.
+func sentinels(v interface{}) []interface{} {
+	if l, ok := v.([]interface{}); ok && len(l) > 0 {
+		return []interface{}{sentinel(v), leafSentinel(v)}
+	}
+	return []interface{}{sentinel(v)}
+}
+
+func leafSentinel(v interface{}) interface{} {
+	switch t := v.(type) {
+	case []interface{}:
+		if len(t) == 0 {
+			return sentinel(t)
+		}
+		out := make([]interface{}, len(t))
+		for i, x := range t {
+			out[i] = leafSentinel(x)
+		}
+		return out
+	case map[string]interface{}:
+		if len(t) == 0 {
+			return sentinel(t)
+		}
+		out := make(map[string]interface{}, len(t))
+		for k, x := range t {
+			out[k] = leafSentinel(x)
+		}
+		return out
+	default:
+		return sentinel(v)
 	}
 }
 
