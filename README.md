@@ -14,6 +14,8 @@
 
 Helm ignores keys a chart does not read, without a warning. A chart renames `storage.data.labels` to `persistence.labels`, Renovate bumps it, and your values keep the old key: CI and Argo CD stay green while the label your backups depend on is gone. deadvalues catches that in the pull request.
 
+The same goes for values written by AI coding agents, which invent keys a chart never had or put real ones at the wrong path. Helm accepts both without a word; deadvalues renders the chart and tells you which ones do nothing.
+
 ![deadvalues check finds a dead key, then deadvalues diff finds the key a chart bump breaks](https://raw.githubusercontent.com/guarnz/deadvalues/main/docs/assets/demo.gif)
 
 - **Catches:** typos, renamed or removed keys, values equal to the chart default, keys that only matter when a feature is on
@@ -207,6 +209,8 @@ jobs:
 ```
 
 It compares the change with the state before it (the pull request base, or the commit before the push), diffs the chart bumps and scans the apps whose files changed. The report goes to the job summary and, on a pull request, to a single comment updated on every push. A `BREAKING` change fails the check, so Renovate does not automerge it.
+
+No script is needed around it: the action installs the release matching its ref, checks it against the release checksums, finds the base and runs both commands. On a large repository, only the apps a pull request touches are rendered.
 
 ```yaml
 - uses: guarnz/deadvalues@v0
