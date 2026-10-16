@@ -109,9 +109,9 @@ If removing a map changes the output but no child alone does (`{{ if or .a .b }}
 | Test | Meaning | Status |
 |---|---|---|
 | Your value equals the default in the chart's `values.yaml` (or is `null` with no default) | The default already does the same | `REDUNDANT` |
-| A **sentinel** value (another string, `!bool`, number+7919, an empty or one-item list) changes the output | The chart reads the key; your value matches a fallback in the template (`default "X" .Values.y`) | `REDUNDANT (implicit)` |
+| A **sentinel** value (another string, `!bool`, number+7919, an empty or one-item list, or the same list with every leaf replaced) changes the output | The chart reads the key; your value matches a fallback in the template (`default "X" .Values.y`) | `REDUNDANT (implicit)` |
 | Turning on a disabled `enabled` flag (next to the key, on an ancestor, or any `*.enabled: false` the user set) makes the key matter | The key only matters with the feature on | `CONDITIONAL` |
-| Declaring an API the chart checks with `.Capabilities.APIVersions.Has` makes the key matter | The key only matters when the cluster serves that API | `CONDITIONAL` |
+| Declaring an API the chart checks with `.Capabilities.APIVersions.Has` (or `has ... .Capabilities.APIVersions`) makes the key matter | The key only matters when the cluster serves that API | `CONDITIONAL` |
 | None of the above | The chart does not read the key | `DEAD` |
 
 The `enabled` test also tries every `*.enabled: false` the user set, not only the flags on the key's path: in kube-prometheus-stack, `defaultRules.rules.etcd` is gated by `kubeEtcd.enabled`, which is elsewhere in the tree. The statuses as users see them are in the [README](README.md#statuses).

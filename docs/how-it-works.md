@@ -10,7 +10,7 @@ deadvalues does not parse templates. It **renders the chart, removes each key yo
    - equal to the chart default → `REDUNDANT`
    - a different value changes the output → `REDUNDANT (implicit)`: your value matches a fallback in the template (`default "X" .Values.y`)
    - turning on a disabled `enabled` flag makes the key matter → `CONDITIONAL`
-   - declaring an API the chart checks with `.Capabilities.APIVersions.Has` makes the key matter → `CONDITIONAL` on that API
+   - declaring an API the chart checks with `.Capabilities.APIVersions.Has` (or `has ... .Capabilities.APIVersions`) makes the key matter → `CONDITIONAL` on that API
    - otherwise → `DEAD`
 
 Renders run in parallel, in memory, client-side (like `helm template`). Nothing touches a cluster.
@@ -62,4 +62,4 @@ With `-f` alone, the comparison runs for every Application and HelmRelease that 
 - Keys read only in `NOTES.txt` are reported as dead on purpose: they do not reach the cluster.
 - `GROUP` covers keys that only matter together inside the same map; interactions across unrelated parts of the values can still show up as `DEAD`.
 - `CONDITIONAL` detects `enabled`-style toggles; a key gated by another kind of switch (e.g. `strategy.rollingUpdate` with `type: Recreate`) is reported as `DEAD`, which is accurate for the current values.
-- Charts that render resources only when the cluster serves an API (`.Capabilities.APIVersions.Has`) cannot know offline whether yours does: those keys are reported as `CONDITIONAL` on that API. See [configuration](configuration.md#api-versions).
+- Charts that render resources only when the cluster serves an API (`.Capabilities.APIVersions.Has`, or `has ... .Capabilities.APIVersions`) cannot know offline whether yours does: those keys are reported as `CONDITIONAL` on that API. See [configuration](configuration.md#api-versions).

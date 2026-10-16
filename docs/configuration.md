@@ -27,7 +27,7 @@ flux:
 
 ## API versions
 
-Charts often render resources only when the cluster serves an API (`.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor"`). Offline, those keys are reported as `CONDITIONAL`, naming the API they wait for (`only when the cluster serves monitoring.coreos.com/v1/ServiceMonitor`). List the ones your cluster serves in `apiVersions`, with the exact string the chart checks, and they are judged as on the cluster.
+Charts often render resources only when the cluster serves an API (`.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor"`, or `has "monitoring.coreos.com/v1/ServiceMonitor" .Capabilities.APIVersions`). Offline, those keys are reported as `CONDITIONAL`, naming the API they wait for (`only when the cluster serves monitoring.coreos.com/v1/ServiceMonitor`). List the ones your cluster serves in `apiVersions`, with the exact string the chart checks, and they are judged as on the cluster.
 
 ## Ignore
 
