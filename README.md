@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/guarnz/deadvalues/main/docs/assets/logo-dark.svg">
-    <img src="https://raw.githubusercontent.com/guarnz/deadvalues/main/docs/assets/logo-light.svg" alt="deadvalues" width="520">
-  </picture>
+  <img src="https://raw.githubusercontent.com/guarnz/deadvalues/main/docs/assets/logo.svg" alt="deadvalues" width="520">
 </p>
 
 <p align="center">
