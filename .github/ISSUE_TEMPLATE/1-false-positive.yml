@@ -1,0 +1,65 @@
+name: False positive
+description: A key is reported with the wrong status, for example DEAD although the chart reads it
+labels:
+  - false-positive
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `deadvalues explain <key>` shows what a key changes in the rendered output. Its output is the fastest way to see why a key got its status.
+  - type: dropdown
+    id: source
+    attributes:
+      label: Where do your apps come from?
+      options:
+        - Argo CD Application
+        - Flux HelmRelease
+        - Chart and values (--chart / -f)
+        - GitHub Action
+    validations:
+      required: true
+  - type: input
+    id: key
+    attributes:
+      label: Key and status
+      description: The key, the status deadvalues reported and the one you expected.
+      placeholder: "persistence.tmp.globalMounts: DEAD, expected REDUNDANT"
+    validations:
+      required: true
+  - type: input
+    id: chart
+    attributes:
+      label: Chart and version
+      placeholder: app-template 5.3.0
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: deadvalues version
+      description: Output of `deadvalues version`.
+      placeholder: v0.1.5
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and output
+      description: The command you ran and what it printed.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: explain
+    attributes:
+      label: Output of deadvalues explain
+      description: "`deadvalues explain <key>` with the same --app, --chart or -f as above."
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: values
+    attributes:
+      label: Values
+      description: The smallest values that show it. Remove secrets first.
+      render: yaml

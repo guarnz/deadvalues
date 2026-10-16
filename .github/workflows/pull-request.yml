@@ -6,11 +6,12 @@ on:
       - edited
       - reopened
       - synchronize
-permissions:
-  pull-requests: read
+permissions: {}
 jobs:
   title:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     steps:
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50
         env:
@@ -25,3 +26,37 @@ jobs:
             refactor
             test
             perf
+  labels:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13
+        with:
+          configuration-path: .github/labeler.yaml
+          sync-labels: true
+      - name: Label the type from the title
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ github.event.pull_request.title }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          case "${TITLE%%[(:!]*}" in
+            fix) want=bug ;;
+            feat|perf) want=enhancement ;;
+            docs) want=documentation ;;
+            build|ci|refactor|test) want=maintenance ;;
+            *) want="" ;;
+          esac
+          if [[ "$TITLE" =~ ^[a-z]+\(deps\) ]]; then want=""; fi
+          if [[ "$TITLE" =~ ^build:\ release\ v ]]; then want=release; fi
+          breaking=""
+          if [[ "$TITLE" =~ ^[a-z]+(\(.+\))?!: ]]; then breaking=breaking; fi
+          for label in bug enhancement documentation maintenance release breaking; do
+            if [[ "$label" == "$want" || "$label" == "$breaking" ]]; then
+              gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label "$label"
+            else
+              gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --remove-label "$label" 2>/dev/null || true
+            fi
+          done

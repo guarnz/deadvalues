@@ -1,0 +1,34 @@
+name: Issues
+on:
+  issues:
+    types:
+      - opened
+      - edited
+permissions:
+  contents: read
+jobs:
+  area:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Label the area from the form
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: ${{ github.event.issue.body }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          source="$(printf '%s\n' "$BODY" | awk '/^### Where do your apps come from\?/ {found=1; next} found && NF {print; exit}')"
+          case "$source" in
+            "Argo CD Application") want=argo ;;
+            "Flux HelmRelease") want=flux ;;
+            "GitHub Action") want=action ;;
+            *) want="" ;;
+          esac
+          for label in argo flux action; do
+            if [[ "$label" == "$want" ]]; then
+              gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --add-label "$label"
+            else
+              gh issue edit "$ISSUE" -R "$GITHUB_REPOSITORY" --remove-label "$label" 2>/dev/null || true
+            fi
+          done

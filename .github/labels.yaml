@@ -1,0 +1,69 @@
+- name: bug
+  color: "d73a4a"
+  description: Something does not work as documented
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or improvement
+- name: documentation
+  color: "0075ca"
+  description: README and docs
+- name: maintenance
+  color: "c5def5"
+  description: Build, CI, refactoring or tests, with no change for users
+- name: release
+  color: "6f42c1"
+  description: Pull request that cuts a new version
+- name: breaking
+  color: "b60205"
+  description: Changes a behavior or an output users rely on
+- name: false-positive
+  color: "e99695"
+  description: A key reported with the wrong status
+- name: flux
+  color: "5468ff"
+  description: Flux HelmRelease, Kustomization and substitutions
+- name: argo
+  color: "ef7b4d"
+  description: Argo CD Applications and kustomize helmCharts
+- name: action
+  color: "2088ff"
+  description: The GitHub Action and its pull request report
+- name: output
+  color: "0e8a16"
+  description: Table, JSON, Markdown, SARIF and annotations
+- name: detection
+  color: "8b5a2b"
+  description: How keys are classified (dead, redundant, conditional, diff)
+- name: cli
+  color: "bfdadc"
+  description: Commands and flags
+- name: ci
+  color: "ededed"
+  description: Workflows, release and packaging
+- name: dependencies
+  color: "cfd3d7"
+  description: Dependency update
+- name: update/major
+  color: "d93f0b"
+  description: Major dependency update
+- name: update/minor
+  color: "fbca04"
+  description: Minor dependency update
+- name: update/patch
+  color: "c2e0c6"
+  description: Patch dependency update
+- name: good first issue
+  color: "7057ff"
+  description: Good for newcomers
+- name: help wanted
+  color: "008672"
+  description: Extra attention is needed
+- name: question
+  color: "d876e3"
+  description: A question, not a bug
+- name: duplicate
+  color: "cfd3d7"
+  description: This issue or pull request already exists
+- name: wontfix
+  color: "ffffff"
+  description: This will not be worked on
