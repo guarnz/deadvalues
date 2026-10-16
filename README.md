@@ -1,11 +1,17 @@
-```text
- ____  _____ _____ ____  _____ _____ __    _____ _____ _____
-|    \|   __|  _  |    \|  |  |  _  |  |  |  |  |   __|   __|
-|  |  |   __|     |  |  |  |  |     |  |__|  |  |   __|__   |
-|____/|_____|__|__|____/ \___/|__|__|_____|_____|_____|_____|
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/guarnz/deadvalues/main/docs/assets/logo-dark.svg">
+    <img src="https://raw.githubusercontent.com/guarnz/deadvalues/main/docs/assets/logo-light.svg" alt="deadvalues" width="520">
+  </picture>
+</p>
 
-[![Release](https://img.shields.io/github/v/release/guarnz/deadvalues?sort=semver&label=Release)](https://github.com/guarnz/deadvalues/releases) [![Go](https://img.shields.io/github/go-mod/go-version/guarnz/deadvalues?logo=go&logoColor=white&label=Go)](https://github.com/guarnz/deadvalues/blob/main/go.mod) [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/guarnz/deadvalues?label=OpenSSF%20Scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/guarnz/deadvalues) [![GitOps](https://img.shields.io/badge/GitOps-Argo_CD_%7C_Flux-326CE5?logo=git&logoColor=white)](https://github.com/guarnz/deadvalues/blob/main/docs/argo-flux.md) [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/deadvalues)](https://artifacthub.io/packages/search?repo=deadvalues)
+<p align="center">
+  <a href="https://github.com/guarnz/deadvalues/releases"><img src="https://img.shields.io/github/v/release/guarnz/deadvalues?sort=semver&amp;label=Release" alt="Release"></a>
+  <a href="https://github.com/guarnz/deadvalues/blob/main/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/guarnz/deadvalues?logo=go&amp;logoColor=white&amp;label=Go" alt="Go"></a>
+  <a href="https://securityscorecards.dev/viewer/?uri=github.com/guarnz/deadvalues"><img src="https://img.shields.io/ossf-scorecard/github.com/guarnz/deadvalues?label=OpenSSF%20Scorecard" alt="OpenSSF Scorecard"></a>
+  <a href="https://github.com/guarnz/deadvalues/blob/main/docs/argo-flux.md"><img src="https://img.shields.io/badge/GitOps-Argo_CD_%7C_Flux-326CE5?logo=git&amp;logoColor=white" alt="GitOps"></a>
+  <a href="https://artifacthub.io/packages/search?repo=deadvalues"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/deadvalues" alt="Artifact Hub"></a>
+</p>
 
 **Helm values dead code detector.** Find the keys in your values files that have **no effect**, and the ones a chart upgrade silently breaks.
 
