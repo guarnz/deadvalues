@@ -263,6 +263,7 @@ func (g *globals) fluxFileJobs(files []string, root string, t *targetFlags, filt
 	var jobs []job
 	var failed []*report.Check
 	for _, f := range files {
+		res.Namespace = g.fluxTargetNamespace(root, filepath.Dir(f))
 		objs, err := flux.ParseFile(f, g.cfg.Flux.Substitute)
 		if err != nil {
 			failed = append(failed, report.Failed(f, err))
@@ -314,6 +315,7 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 		Sources:   &flux.Index{Objects: append(append([]*flux.Object{}, flux.TreeGenerators(dir)...), objs...)},
 		Fallback:  g.repoIndex(root),
 		Attribute: attr.Origins,
+		Namespace: g.fluxTargetNamespace(root, dir),
 	}
 
 	var jobs []job
@@ -338,6 +340,14 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 		jobs = append(jobs, j)
 	}
 	return jobs, failed
+}
+
+// fluxTargetNamespace is the targetNamespace of the Flux Kustomization that applies dir.
+func (g *globals) fluxTargetNamespace(root, dir string) string {
+	if ks := g.repoIndex(root).KustomizationFor(root, dir); ks != nil {
+		return flux.Str(ks.Node, "spec", "targetNamespace")
+	}
+	return ""
 }
 
 // appNames lists the names --only and --skip accept for a HelmRelease: its

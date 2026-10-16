@@ -202,6 +202,43 @@ spec:
 	}
 }
 
+func TestKustomizationFor(t *testing.T) {
+	root := t.TempDir()
+	objs, err := ParseYAML([]byte(`apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: {name: cilium, namespace: flux-system}
+spec: {path: ./apps/kube-system/cilium/app, targetNamespace: kube-system}
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: {name: apps, namespace: flux-system}
+spec: {path: ./apps}
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata: {name: not-flux}
+spec: {path: ./apps/default/echo}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := &Index{Objects: objs}
+	for _, tt := range []struct{ dir, want string }{
+		{"apps/kube-system/cilium/app", "cilium"},
+		{"apps/kube-system/cilium/app/config", "cilium"},
+		{"apps/default/echo", "apps"},
+		{"other", ""},
+	} {
+		got := ""
+		if ks := ix.KustomizationFor(root, filepath.Join(root, tt.dir)); ks != nil {
+			got = ks.Name
+		}
+		if got != tt.want {
+			t.Errorf("KustomizationFor(%s) = %q, want %q", tt.dir, got, tt.want)
+		}
+	}
+}
+
 func TestResolveAnchorsOutsideValues(t *testing.T) {
 	repo, err := ParseYAML([]byte("apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata: {name: http, namespace: ns}\nspec: {url: https://charts.example.com}\n"))
 	if err != nil {

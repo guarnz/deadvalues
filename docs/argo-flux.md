@@ -39,7 +39,9 @@
 | `valuesFrom[].optional` | missing and optional: ignored, like the helm-controller does |
 | Merge order | `valuesFrom` in list order, then `spec.values` on top, as the helm-controller does |
 | Release name | `spec.releaseName`; otherwise `<targetNamespace>-<name>` when there is a `targetNamespace`; otherwise the name |
-| Namespace | `spec.targetNamespace`, otherwise `metadata.namespace`, otherwise `default` |
+| Namespace | `spec.targetNamespace`, otherwise the `targetNamespace` of the Flux `Kustomization` that applies the directory, otherwise `metadata.namespace`, otherwise `default` |
+
+The Flux `Kustomization` is the one whose `spec.path` is the HelmRelease's directory, or the closest directory above it.
 
 A HelmRelease is shown as `<namespace>/<name>`. When several sources or ConfigMaps have the same name, a ConfigMap from a `configMapGenerator` wins, then an object in the same namespace, then the one whose directory shares the longest prefix with the HelmRelease (`clusters/staging` versus `clusters/production`).
 
