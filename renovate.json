@@ -16,6 +16,7 @@
     "after 12am and before 6am every weekday"
   ],
   "prHourlyLimit": 3,
+  "labels": ["dependencies"],
   "customManagers": [
     {
       "customType": "regex",
@@ -50,6 +51,18 @@
       "matchManagers": ["gomod"],
       "matchPackageNames": ["helm.sh/**"],
       "groupName": "helm sdk"
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["update/major"]
+    },
+    {
+      "matchUpdateTypes": ["minor"],
+      "addLabels": ["update/minor"]
+    },
+    {
+      "matchUpdateTypes": ["patch"],
+      "addLabels": ["update/patch"]
     }
   ]
 }

@@ -1,0 +1,33 @@
+flux:
+  - changed-files:
+      - any-glob-to-any-file: internal/flux/**
+argo:
+  - changed-files:
+      - any-glob-to-any-file: internal/argo/**
+action:
+  - changed-files:
+      - any-glob-to-any-file:
+          - action.yml
+          - setup/**
+          - scripts/action-*.sh
+          - docs/github-action.md
+output:
+  - changed-files:
+      - any-glob-to-any-file: internal/report/**
+detection:
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/probe/**
+          - internal/compare/**
+          - internal/diff/**
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/cli/**
+          - cmd/**
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - .goreleaser.yaml
+          - Dockerfile
