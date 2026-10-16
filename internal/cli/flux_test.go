@@ -96,6 +96,60 @@ func TestFluxScanBuildsOverlays(t *testing.T) {
 	}
 }
 
+func TestScanSkipByAnyNameOrDirectory(t *testing.T) {
+	root := fluxFixture(t)
+	broken := filepath.Join(root, "apps", "broken")
+	if err := os.MkdirAll(broken, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"kustomization.yaml": "resources:\n  - ../base/demo\npatches:\n  - path: missing.yaml\n",
+		"missing.yaml":       "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: does-not-exist\ndata:\n  a: b\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(broken, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	scan := func(skip ...string) []string {
+		args := []string{"scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none"}
+		for _, s := range skip {
+			args = append(args, "--skip", s)
+		}
+		out, _ := runCLI(t, args...)
+		var checks []fluxCheck
+		if strings.TrimSpace(out) != "" {
+			if err := json.Unmarshal([]byte(out), &checks); err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+		}
+		var apps []string
+		for _, c := range checks {
+			apps = append(apps, c.App)
+		}
+		return apps
+	}
+
+	all := scan()
+	if !strings.Contains(strings.Join(all, " "), "apps/broken") {
+		t.Fatalf("a failed kustomize build should be reported by its directory: %v", all)
+	}
+	for _, tt := range []struct {
+		skip []string
+		want string
+	}{
+		{[]string{"demo"}, "apps/broken"},
+		{[]string{"demo/demo", broken}, ""},
+		{[]string{"production:demo/demo", broken}, "staging:demo/demo"},
+		{[]string{filepath.Join(root, "apps", "staging"), broken}, "production:demo/demo"},
+	} {
+		if got := strings.Join(scan(tt.skip...), " "); got != tt.want {
+			t.Errorf("--skip %v: apps = %q, want %q", tt.skip, got, tt.want)
+		}
+	}
+}
+
 func TestFluxCheckApp(t *testing.T) {
 	root := fluxFixture(t)
 	file := filepath.Join(root, "infrastructure", "standalone.yaml")

@@ -335,18 +335,17 @@ func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string)
 	}
 	defer s.close()
 
-	all := func(string) bool { return true }
 	headDir := s.inHead(absDir)
 	if _, err := os.Stat(headDir); err != nil {
 		return nil, fmt.Errorf("%s does not exist at %s", dir, head)
 	}
-	current, failed, err := g.dirJobs(headDir, s.headRoot, all)
+	current, failed, err := g.dirJobs(headDir, s.headRoot, nil)
 	if err != nil {
 		return nil, err
 	}
 	var old map[string]job
 	if baseDir := s.inBase(absDir); dirExists(baseDir) {
-		oldJobs, _, err := g.dirJobs(baseDir, s.baseRoot, all)
+		oldJobs, _, err := g.dirJobs(baseDir, s.baseRoot, nil)
 		if err != nil {
 			return nil, err
 		}

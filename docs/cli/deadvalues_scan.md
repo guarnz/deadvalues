@@ -20,6 +20,7 @@ deadvalues scan <dir> [flags]
 ```
   deadvalues scan apps
   deadvalues scan apps --changed-since origin/main
+  deadvalues scan apps --skip cilium,apps/legacy
 ```
 
 ### Options
@@ -29,9 +30,9 @@ deadvalues scan <dir> [flags]
       --details                print per-key findings, not only the summary table
       --fail-on string         dead | conditional | redundant | none (default "dead")
   -h, --help                   help for scan
-      --only strings           scan only these Applications or HelmReleases (by metadata.name)
+      --only strings           scan only these Applications or HelmReleases, by name, namespace/name or the name in the report
       --repo-root string       repository root for $values/, sources and local charts (default: git top-level)
-      --skip strings           skip these Applications or HelmReleases
+      --skip strings           skip these Applications or HelmReleases (by name, namespace/name or the name in the report) or directories
 ```
 
 ### Options inherited from parent commands

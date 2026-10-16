@@ -76,7 +76,7 @@ files (-f): their chart is then found from the app that uses them.`,
 // one release only.
 func (g *globals) otherUsers(self, root string) map[string][]string {
 	out := map[string][]string{}
-	jobs, _, err := g.dirJobs(root, root, func(string) bool { return true })
+	jobs, _, err := g.dirJobs(root, root, nil)
 	if err != nil {
 		return out
 	}

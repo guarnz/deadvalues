@@ -34,7 +34,8 @@ HelmReleases are checked with their overlay patches applied. Sources without
 a Helm chart are skipped. One failing app does not stop the scan; it is
 reported as ERROR in the summary.`,
 		Example: `  deadvalues scan apps
-  deadvalues scan apps --changed-since origin/main`,
+  deadvalues scan apps --changed-since origin/main
+  deadvalues scan apps --skip cilium,apps/legacy`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			level, err := g.failOn(cmd, failOn, "dead", checkLevels)
@@ -65,10 +66,7 @@ reported as ERROR in the summary.`,
 				}
 			}
 
-			keep := func(name string) bool {
-				return (len(only) == 0 || slices.Contains(only, name)) && !slices.Contains(skip, name)
-			}
-			jobs, reports, err := g.dirJobs(dir, root, keep)
+			jobs, reports, err := g.dirJobs(dir, root, newAppFilter(only, skip))
 			if err != nil {
 				return &exitError{code: 2, err: err}
 			}
@@ -105,8 +103,8 @@ reported as ERROR in the summary.`,
 			return checkExit(reports, level)
 		},
 	}
-	cmd.Flags().StringSliceVar(&only, "only", nil, "scan only these Applications or HelmReleases (by metadata.name)")
-	cmd.Flags().StringSliceVar(&skip, "skip", nil, "skip these Applications or HelmReleases")
+	cmd.Flags().StringSliceVar(&only, "only", nil, "scan only these Applications or HelmReleases, by name, namespace/name or the name in the report")
+	cmd.Flags().StringSliceVar(&skip, "skip", nil, "skip these Applications or HelmReleases (by name, namespace/name or the name in the report) or directories")
 	cmd.Flags().StringVar(&changedSince, "changed-since", "", "scan only targets whose files changed since this git ref")
 	cmd.Flags().StringVar(&failOn, "fail-on", "dead", "dead | conditional | redundant | none")
 	cmd.Flags().BoolVar(&details, "details", false, "print per-key findings, not only the summary table")
