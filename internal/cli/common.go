@@ -56,6 +56,8 @@ type job struct {
 	namespace   string
 	vals        *values.Set
 	notes       []string
+	// placeholders are value paths that exist only on the cluster.
+	placeholders [][]string
 	// only restricts findings to keys set in these values files (normalized
 	// paths), when the user asked about specific files with -f alone.
 	only map[string]bool
@@ -185,10 +187,11 @@ func (g *globals) renderer(ctx context.Context, j job, ref source.Ref) (*render.
 		return nil, err
 	}
 	return render.New(c, render.Options{
-		Release:     j.release,
-		Namespace:   j.namespace,
-		KubeVersion: g.kubeVersion,
-		APIVersions: g.apiVersions,
+		Release:      j.release,
+		Namespace:    j.namespace,
+		KubeVersion:  g.kubeVersion,
+		APIVersions:  g.apiVersions,
+		Placeholders: j.placeholders,
 	})
 }
 
@@ -224,6 +227,10 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 		},
 	})
 	if err != nil {
+		if len(j.placeholders) > 0 {
+			return nil, fmt.Errorf("%s: baseline render failed with placeholders at %s for valuesFrom sources not in the repository (mark them optional or skip the app): %w",
+				r.Label(), displayPaths(j.placeholders), err)
+		}
 		return nil, fmt.Errorf("%s: baseline render failed: %w", r.Label(), err)
 	}
 	a := &analysis{renderer: r, defaults: defaults, result: res, took: time.Since(start)}
@@ -244,6 +251,14 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 		a.notes = append(a.notes, "the chart uses lookup, which is empty offline; keys read only through it can look dead")
 	}
 	return a, nil
+}
+
+func displayPaths(paths [][]string) string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		out[i] = values.Display(p)
+	}
+	return strings.Join(out, ", ")
 }
 
 func (g *globals) ignorer(app string) func([]string) bool {

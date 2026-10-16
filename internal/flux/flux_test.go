@@ -156,6 +156,52 @@ spec: {chart: podinfo, version: "6.5.0", sourceRef: {kind: HelmRepository, name:
 	}
 }
 
+func TestValuesFromNotInRepository(t *testing.T) {
+	repo, err := ParseYAML([]byte("apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata: {name: http, namespace: ns}\nspec: {url: https://charts.example.com}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{Sources: &Index{Objects: repo}}
+	objs, err := ParseYAML([]byte(`apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata: {name: tempo, namespace: ns}
+spec:
+  chart: {spec: {chart: tempo, sourceRef: {kind: HelmRepository, name: http}}}
+  valuesFrom:
+    - {kind: Secret, name: tempo-s3, valuesKey: bucket, targetPath: storage.trace.s3.bucket}
+    - {kind: Secret, name: tempo-s3, valuesKey: endpoint, targetPath: storage.trace.s3.endpoint}
+    - {kind: Secret, name: tempo-extra}
+    - {kind: ConfigMap, name: tuning, optional: true}
+  values:
+    replicas: 2
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := r.Resolve(objs[0])
+	if err != nil {
+		t.Fatalf("a valuesFrom source missing from the repository should not fail the release: %v", err)
+	}
+	if got := out.Placeholders; len(got) != 2 || strings.Join(got[0], ".") != "storage.trace.s3.bucket" || strings.Join(got[1], ".") != "storage.trace.s3.endpoint" {
+		t.Errorf("placeholders = %v, want the bucket and endpoint paths", got)
+	}
+	if len(out.Notes) != 2 {
+		t.Errorf("notes = %q, want one per missing source", out.Notes)
+	}
+	notes := strings.Join(out.Notes, "\n")
+	for _, want := range []string{"Secret ns/tempo-s3 are not in the repository; placeholders at storage.trace.s3.bucket, storage.trace.s3.endpoint", "Secret ns/tempo-extra are not in the repository and were not checked"} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("notes = %q, want %q", notes, want)
+		}
+	}
+	if strings.Contains(notes, "tuning") {
+		t.Errorf("an optional source missing from the repository should be skipped silently: %q", notes)
+	}
+	if v, _ := values.Lookup(out.Values.Values, []string{"replicas"}); v != float64(2) {
+		t.Errorf("replicas = %#v", v)
+	}
+}
+
 func TestResolveAnchorsOutsideValues(t *testing.T) {
 	repo, err := ParseYAML([]byte("apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata: {name: http, namespace: ns}\nspec: {url: https://charts.example.com}\n"))
 	if err != nil {

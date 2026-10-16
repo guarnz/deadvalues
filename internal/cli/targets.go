@@ -336,15 +336,16 @@ func (g *globals) fluxBuildJobs(dir, root, label string, keep func(string) bool)
 
 func releaseJob(rel *flux.Release, label, file, where string, t *targetFlags) (job, error) {
 	j := job{
-		name:      prefixed(label, rel.ID),
-		app:       rel.Object.Name,
-		appFile:   file,
-		ident:     "flux:" + where + ":" + rel.ID,
-		ref:       rel.Chart,
-		release:   rel.ReleaseName,
-		namespace: rel.Namespace,
-		vals:      rel.Values,
-		notes:     rel.Notes,
+		name:         prefixed(label, rel.ID),
+		app:          rel.Object.Name,
+		appFile:      file,
+		ident:        "flux:" + where + ":" + rel.ID,
+		ref:          rel.Chart,
+		release:      rel.ReleaseName,
+		namespace:    rel.Namespace,
+		vals:         rel.Values,
+		notes:        rel.Notes,
+		placeholders: rel.Placeholders,
 	}
 	if t != nil {
 		if err := addExtra(j.vals, t); err != nil {

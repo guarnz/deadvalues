@@ -29,6 +29,8 @@ type Release struct {
 	Namespace   string
 	Values      *values.Set
 	Notes       []string
+	// Placeholders are the targetPaths of valuesFrom sources not in the repository.
+	Placeholders [][]string
 }
 
 // Resolver turns HelmRelease objects into releases. Sources, ConfigMaps and
@@ -199,14 +201,19 @@ func (r *Resolver) valuesFrom(out *Release, rel *Object, vf *yaml.Node, ns strin
 	label := kind + " " + ns + "/" + name
 
 	o := r.find(kind, name, ns, rel.File)
-	if o == nil {
-		if optional {
-			return nil
-		}
-		return fmt.Errorf("valuesFrom %s not found in the repository", label)
+	if o == nil && optional {
+		return nil
 	}
-	if kind == "Secret" && Get(o.Node, "sops") != nil {
-		out.Notes = append(out.Notes, "values from "+label+" are SOPS-encrypted and were not checked")
+	sops := o != nil && kind == "Secret" && Get(o.Node, "sops") != nil
+	if o == nil || sops {
+		why := "are not in the repository"
+		if sops {
+			why = "are SOPS-encrypted"
+		}
+		if target != "" {
+			out.Placeholders = append(out.Placeholders, strings.Split(target, "."))
+		}
+		noteMissing(out, "values from "+label+" "+why, target)
 		return nil
 	}
 
@@ -241,6 +248,23 @@ func (r *Resolver) valuesFrom(out *Release, rel *Object, vf *yaml.Node, ns strin
 		return nil
 	}
 	return out.Values.AddYAML([]byte(data), label)
+}
+
+// noteMissing adds one note per missing source, listing every targetPath
+// that got a placeholder instead of one note each.
+func noteMissing(out *Release, prefix, target string) {
+	if target == "" {
+		out.Notes = append(out.Notes, prefix+" and were not checked")
+		return
+	}
+	head := prefix + "; placeholders at "
+	for i, n := range out.Notes {
+		if strings.HasPrefix(n, head) {
+			out.Notes[i] = n + ", " + target
+			return
+		}
+	}
+	out.Notes = append(out.Notes, head+target)
 }
 
 func dataValue(o *Object, key string) (string, bool) {

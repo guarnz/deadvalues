@@ -22,7 +22,12 @@ type Options struct {
 	Namespace   string
 	KubeVersion string
 	APIVersions []string
+	// Placeholders are paths set from values that exist only on the cluster.
+	Placeholders [][]string
 }
+
+// Placeholder stands in for a value that exists only on the cluster.
+const Placeholder = "deadvalues-placeholder"
 
 type Renderer struct {
 	chart *chart.Chart
@@ -47,6 +52,12 @@ func New(c *chart.Chart, o Options) (*Renderer, error) {
 	}
 	if o.Namespace == "" {
 		o.Namespace = "default"
+	}
+	if len(o.Placeholders) > 0 {
+		var err error
+		if c, err = withPlaceholders(c, o.Placeholders); err != nil {
+			return nil, err
+		}
 	}
 	return &Renderer{
 		chart: c,
@@ -129,6 +140,24 @@ func clone(c *chart.Chart) *chart.Chart {
 	}
 	out.SetDependencies(deps...)
 	return out
+}
+
+// withPlaceholders sets the paths the chart has no default for, so the render
+// takes the same template branch as on the cluster, where the value exists.
+func withPlaceholders(c *chart.Chart, paths [][]string) (*chart.Chart, error) {
+	coalesced, err := commonutil.CoalesceValues(clone(c), map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	defaults := coalesced.AsMap()
+	out := clone(c)
+	for _, p := range paths {
+		if v, ok := values.Lookup(defaults, p); ok && v != nil && v != "" {
+			continue
+		}
+		values.SetPath(out.Values, p, Placeholder)
+	}
+	return out, nil
 }
 
 // WithAPIVersions returns a renderer for the same chart whose capabilities
