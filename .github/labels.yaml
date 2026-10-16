@@ -10,6 +10,9 @@
 - name: maintenance
   color: "c5def5"
   description: Build, CI, refactoring or tests, with no change for users
+- name: release
+  color: "6f42c1"
+  description: Pull request that cuts a new version
 - name: breaking
   color: "b60205"
   description: Changes a behavior or an output users rely on

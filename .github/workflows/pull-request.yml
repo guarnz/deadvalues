@@ -49,9 +49,10 @@ jobs:
             *) want="" ;;
           esac
           if [[ "$TITLE" =~ ^[a-z]+\(deps\) ]]; then want=""; fi
+          if [[ "$TITLE" =~ ^build:\ release\ v ]]; then want=release; fi
           breaking=""
           if [[ "$TITLE" =~ ^[a-z]+(\(.+\))?!: ]]; then breaking=breaking; fi
-          for label in bug enhancement documentation maintenance breaking; do
+          for label in bug enhancement documentation maintenance release breaking; do
             if [[ "$label" == "$want" || "$label" == "$breaking" ]]; then
               gh pr edit "$PR" -R "$GITHUB_REPOSITORY" --add-label "$label"
             else
