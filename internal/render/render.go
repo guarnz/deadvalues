@@ -139,11 +139,10 @@ func (r *Renderer) WithAPIVersions(apis []string) *Renderer {
 	return &Renderer{chart: r.chart, opts: r.opts, caps: caps}
 }
 
-var apiVersionsHas = regexp.MustCompile(`APIVersions\.Has\s+"([^"]+)"`)
+var apiVersionsHas = regexp.MustCompile(`APIVersions\.Has\s+"([^"]+)"|\bhas\s+"([^"]+)"\s+\$?\.Capabilities\.APIVersions\b`)
 
-// MissingAPIVersions lists the API versions the chart checks with
-// .Capabilities.APIVersions.Has that the configured capabilities lack,
-// leaving out versions Kubernetes removed before the rendered version.
+// MissingAPIVersions lists the API versions the chart checks for that the
+// capabilities lack, leaving out versions removed before the rendered one.
 func (r *Renderer) MissingAPIVersions() []string {
 	seen := map[string]bool{}
 	var out []string
@@ -151,7 +150,7 @@ func (r *Renderer) MissingAPIVersions() []string {
 	walk = func(c *chart.Chart) {
 		for _, t := range c.Templates {
 			for _, m := range apiVersionsHas.FindAllStringSubmatch(string(t.Data), -1) {
-				v := m[1]
+				v := m[1] + m[2]
 				if seen[v] || r.caps.APIVersions.Has(v) || removed(v, r.caps.KubeVersion) {
 					continue
 				}
