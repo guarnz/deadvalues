@@ -16,6 +16,9 @@ inputs:
   args:
     description: Run this deadvalues command instead of the built-in flow, e.g. "diff --app apps/example.yaml --to 2.0.0". Split on spaces, quotes are not supported.
     default: ""
+  skip:
+    description: Apps or directories the built-in diff and scan leave out, comma-separated. An app by its name, namespace/name or the name in the report. Ignored when args is set.
+    default: ""
   fail-on-diff:
     description: "Fail when diff finds: breaking | pinned | changed | none."
     default: breaking
@@ -67,6 +70,7 @@ runs:
         PUSH_BEFORE: ${{ github.event.before }}
         FAIL_ON_DIFF: ${{ inputs.fail-on-diff }}
         FAIL_ON_SCAN: ${{ inputs.fail-on-scan }}
+        SKIP: ${{ inputs.skip }}
       run: bash "$GITHUB_ACTION_PATH/scripts/action-run.sh"
     - name: Comment on the pull request
       if: inputs.comment == 'true' && github.event.pull_request.number != ''

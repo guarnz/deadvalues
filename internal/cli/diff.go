@@ -26,6 +26,7 @@ func newDiffCmd(g *globals) *cobra.Command {
 		from, to   string
 		base, head string
 		failOn     string
+		skip       []string
 	)
 	cmd := &cobra.Command{
 		Use:   "diff [dir]",
@@ -62,7 +63,7 @@ same is done for the Applications and HelmReleases that load those files.`,
 				if t.app != "" || t.chart != "" || from != "" || to != "" {
 					return usageErr("diff <dir> cannot be combined with --app, --chart, --from or --to")
 				}
-				reports, err = g.diffDir(cmd.Context(), args[0], t.repoRoot, base, head)
+				reports, err = g.diffDir(cmd.Context(), args[0], t.repoRoot, base, head, newAppFilter(nil, skip))
 				if err != nil {
 					return &exitError{code: 2, err: err}
 				}
@@ -85,6 +86,9 @@ same is done for the Applications and HelmReleases that load those files.`,
 					})
 				}
 			} else {
+				if len(skip) > 0 {
+					return usageErr("--skip only applies to diff <dir>")
+				}
 				reports, err = g.diffTarget(cmd.Context(), &t, from, to, base, head)
 				if err != nil {
 					return err
@@ -116,6 +120,7 @@ same is done for the Applications and HelmReleases that load those files.`,
 	cmd.Flags().StringVar(&base, "base", "", `git ref of the "before" side (default: where --head branched from)`)
 	cmd.Flags().StringVar(&head, "head", "", `git ref of the "after" side (default: your working tree)`)
 	cmd.Flags().StringVar(&failOn, "fail-on", "breaking", "breaking | pinned | changed | none")
+	cmd.Flags().StringSliceVar(&skip, "skip", nil, "with a directory, skip these Applications or HelmReleases (by name, namespace/name or the name in the report) or directories")
 	return cmd
 }
 
@@ -320,7 +325,7 @@ func (g *globals) diffValues(ctx context.Context, t *targetFlags, from, to, base
 }
 
 // diffDir compares every target under dir between the base and head trees.
-func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string) ([]*report.Diff, error) {
+func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string, filter *appFilter) ([]*report.Diff, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -339,13 +344,13 @@ func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string)
 	if _, err := os.Stat(headDir); err != nil {
 		return nil, fmt.Errorf("%s does not exist at %s", dir, head)
 	}
-	current, failed, err := g.dirJobs(headDir, s.headRoot, nil)
+	current, failed, err := g.dirJobs(headDir, s.headRoot, filter.in(s.inHead))
 	if err != nil {
 		return nil, err
 	}
 	var old map[string]job
 	if baseDir := s.inBase(absDir); dirExists(baseDir) {
-		oldJobs, _, err := g.dirJobs(baseDir, s.baseRoot, nil)
+		oldJobs, _, err := g.dirJobs(baseDir, s.baseRoot, filter.in(s.inBase))
 		if err != nil {
 			return nil, err
 		}

@@ -289,6 +289,14 @@ spec:
 	if kinds["labels.team"] != "BREAKING" || kinds["service.type"] != "PINNED" || kinds["revisionHistoryLimit"] != "CHANGED" {
 		t.Errorf("changes = %v", kinds)
 	}
+	for _, skip := range []string{"cases", "web/cases", filepath.Join(root, "apps")} {
+		if out, code := runCLI(t, "diff", filepath.Join(root, "apps"), "--base", "HEAD", "--repo-root", root, "--skip", skip); code != 0 || !strings.Contains(out, "no chart version changed") {
+			t.Errorf("--skip %s: exit %d\n%s", skip, code, out)
+		}
+	}
+	if _, code := runCLI(t, "diff", "--app", filepath.Join(root, "apps", "cases.yaml"), "--to", "0.2.0", "--skip", "cases"); code != 2 {
+		t.Errorf("--skip with --app: exit %d, want 2", code)
+	}
 
 	git("add", "-A")
 	git("commit", "-qm", "bump")

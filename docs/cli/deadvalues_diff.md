@@ -46,6 +46,7 @@ deadvalues diff [dir] [flags]
       --repo string        Helm repository URL for --chart
       --repo-root string   repository root for $values/, sources and local charts (default: git top-level)
       --set stringArray    extra values, same syntax as helm --set
+      --skip strings       with a directory, skip these Applications or HelmReleases (by name, namespace/name or the name in the report) or directories
       --to string          new chart version
   -f, --values strings     values files, merged in order; given alone, the chart is found from the Application, HelmRelease or chart directory that uses them
 ```

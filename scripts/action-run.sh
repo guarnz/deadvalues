@@ -224,6 +224,8 @@ diff_fail=()
 if [[ -n "${FAIL_ON_DIFF:-}" ]]; then diff_fail=(--fail-on "$FAIL_ON_DIFF"); fi
 scan_fail=()
 if [[ -n "${FAIL_ON_SCAN:-}" ]]; then scan_fail=(--fail-on "$FAIL_ON_SCAN"); fi
+skip=()
+if [[ -n "${SKIP:-}" ]]; then skip=(--skip "$SKIP"); fi
 
 if [[ -n "${ARGS:-}" ]]; then
   read -ra argv <<< "$ARGS"
@@ -234,15 +236,15 @@ elif [[ "$MODE" = "diff" ]] && [[ -z "$base" ]]; then
   status=2
 else
   if [[ -n "$base" ]] && [[ "$MODE" != "scan" ]]; then
-    dv diff "$APPS" --base "$base" ${diff_fail[@]+"${diff_fail[@]}"}
+    dv diff "$APPS" --base "$base" ${diff_fail[@]+"${diff_fail[@]}"} ${skip[@]+"${skip[@]}"}
   fi
   if [[ "$MODE" != "diff" ]]; then
     if [[ -n "$base" ]]; then
-      dv scan "$APPS" --changed-since "$base" --details ${scan_fail[@]+"${scan_fail[@]}"}
+      dv scan "$APPS" --changed-since "$base" --details ${scan_fail[@]+"${scan_fail[@]}"} ${skip[@]+"${skip[@]}"}
     else
       if [[ -z "$note" ]]; then note="No base to compare with (no pull request, or the first push of a branch)."; fi
       note="$note Every app was scanned."
-      dv scan "$APPS" --details ${scan_fail[@]+"${scan_fail[@]}"}
+      dv scan "$APPS" --details ${scan_fail[@]+"${scan_fail[@]}"} ${skip[@]+"${skip[@]}"}
     fi
   fi
 fi

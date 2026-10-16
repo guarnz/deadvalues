@@ -78,6 +78,15 @@ What runs, by `mode`:
 
 `diff` catches what a chart bump does to your values (the Renovate case); `scan --changed-since` catches dead keys in the apps whose files changed.
 
+To leave out apps that cannot render offline, list them in `skip`, by name or directory; both `diff` and `scan` get it:
+
+```yaml
+- uses: guarnz/deadvalues@v0
+  with:
+    path: kubernetes
+    skip: cilium,kubernetes/apps/default/echo-server
+```
+
 ## Your own command
 
 ```yaml
@@ -86,7 +95,7 @@ What runs, by `mode`:
     args: diff --app apps/example.yaml --to 0.2.0
 ```
 
-`args` replaces the built-in flow; `mode`, `base` and the `fail-on-*` inputs are ignored, so put `--fail-on` in `args` if you need it. The value is split on spaces and quotes are not supported.
+`args` replaces the built-in flow; `mode`, `base`, `skip` and the `fail-on-*` inputs are ignored, so put `--fail-on` in `args` if you need it. The value is split on spaces and quotes are not supported.
 
 ## Report
 
@@ -152,6 +161,7 @@ The `version` input overrides it: an exact tag such as `v0.1.0`, or `latest`. Re
 | `mode` | `all` | `all`, `diff` or `scan` |
 | `base` | from the event | Ref or SHA to compare with |
 | `args` | | Run this command instead of the built-in flow |
+| `skip` | | Apps or directories to leave out of the built-in flow, comma-separated: an app by its name, `namespace/name` or the name in the report |
 | `fail-on-diff` | `breaking` | `breaking`, `pinned`, `changed` or `none` |
 | `fail-on-scan` | `none` | `dead`, `conditional`, `redundant` or `none` |
 | `comment` | `true` | Post or update the pull request comment |
