@@ -43,6 +43,8 @@ type Resolver struct {
 	// repository when Sources is a kustomize build output.
 	Fallback  *Index
 	Attribute func(rel *Object, path []string) []values.Origin
+	// Namespace replaces the releases' own, like a Kustomization's targetNamespace.
+	Namespace string
 }
 
 func (r *Resolver) find(kind, name, namespace, near string) *Object {
@@ -58,6 +60,9 @@ func (r *Resolver) find(kind, name, namespace, near string) *Object {
 func (r *Resolver) Resolve(rel *Object) (*Release, error) {
 	spec := Get(rel.Node, "spec")
 	ns := rel.Namespace
+	if r.Namespace != "" {
+		ns = r.Namespace
+	}
 	if ns == "" {
 		ns = "default"
 	}

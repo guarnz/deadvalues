@@ -96,6 +96,31 @@ func TestFluxScanBuildsOverlays(t *testing.T) {
 	}
 }
 
+func TestScanUsesFluxKustomizationNamespace(t *testing.T) {
+	root := fluxFixture(t)
+	writeFile(t, filepath.Join(root, "clusters", "main", "apps.yaml"), `apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: production
+  namespace: flux-system
+spec:
+  path: ./apps/production
+  targetNamespace: shop
+`)
+	out, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
+	var checks []fluxCheck
+	if err := json.Unmarshal([]byte(out), &checks); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	var apps []string
+	for _, c := range checks {
+		apps = append(apps, c.App)
+	}
+	if got := strings.Join(apps, " "); got != "production:shop/demo staging:demo/demo" {
+		t.Errorf("apps = %q, want production in the Kustomization's targetNamespace and staging unchanged", got)
+	}
+}
+
 func TestScanSkipByAnyNameOrDirectory(t *testing.T) {
 	root := fluxFixture(t)
 	broken := filepath.Join(root, "apps", "broken")
