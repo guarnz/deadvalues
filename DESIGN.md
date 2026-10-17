@@ -110,7 +110,7 @@ If removing a map changes the output but no child alone does (`{{ if or .a .b }}
 |---|---|---|
 | Your value equals the default in the chart's `values.yaml` (or is `null` with no default) | The default already does the same | `REDUNDANT` |
 | A **sentinel** value (another string, `!bool`, number+7919, an empty or one-item list, or the same list with every leaf replaced) changes the output | The chart reads the key; your value matches a fallback in the template (`default "X" .Values.y`) | `REDUNDANT (implicit)` |
-| Turning on a disabled `enabled` flag (next to the key, on an ancestor, or any `*.enabled: false` the user set) makes the key matter | The key only matters with the feature on | `CONDITIONAL` |
+| Turning on a disabled `enabled` flag (next to the key, on an ancestor, or any `*.enabled: false` the user set), or all the disabled ones on its ancestors together (`hubble.enabled` and `hubble.relay.enabled`), makes the key matter | The key only matters with the feature on | `CONDITIONAL` |
 | Declaring an API the chart checks with `.Capabilities.APIVersions.Has` (or `has ... .Capabilities.APIVersions`) makes the key matter | The key only matters when the cluster serves that API | `CONDITIONAL` |
 | None of the above | The chart does not read the key | `DEAD` |
 

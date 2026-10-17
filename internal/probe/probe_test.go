@@ -1,12 +1,52 @@
 package probe
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/guarnz/deadvalues/internal/compare"
 	"github.com/guarnz/deadvalues/internal/values"
 )
+
+// A key that only matters with two flags on, a parent's and its own section's,
+// is CONDITIONAL on both, not DEAD.
+func TestConditionalOnNestedToggles(t *testing.T) {
+	render := func(v map[string]interface{}) (compare.Snapshot, error) {
+		out := compare.Snapshot{}
+		hubble, _ := values.Lookup(v, []string{"hubble", "enabled"})
+		relay, _ := values.Lookup(v, []string{"hubble", "relay", "enabled"})
+		if hubble == true && relay == true {
+			roll, _ := values.Lookup(v, []string{"hubble", "relay", "rollOutPods"})
+			out["relay:rollOutPods"] = fmt.Sprint(roll)
+		}
+		return out, nil
+	}
+	user := map[string]interface{}{"hubble": map[string]interface{}{
+		"enabled": false,
+		"relay":   map[string]interface{}{"enabled": false, "rollOutPods": true},
+	}}
+	defaults := map[string]interface{}{"hubble": map[string]interface{}{
+		"enabled": false,
+		"relay":   map[string]interface{}{"enabled": false, "rollOutPods": false},
+	}}
+	res, err := Run(Options{Render: render, User: user, Defaults: defaults})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, ok := res.Find([]string{"hubble", "relay", "rollOutPods"})
+	if !ok || f.Status != Conditional {
+		t.Fatalf("rollOutPods = %+v, want CONDITIONAL", f)
+	}
+	var got []string
+	for _, tg := range f.Toggles {
+		got = append(got, values.Display(tg))
+	}
+	if strings.Join(got, ",") != "hubble.enabled,hubble.relay.enabled" {
+		t.Errorf("toggles = %v, want hubble.enabled and hubble.relay.enabled", got)
+	}
+}
 
 // The sentinel must differ from the user value for every YAML type, or the
 // REDUNDANT (implicit) test would miss template fallbacks for that type.
