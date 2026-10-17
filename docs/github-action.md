@@ -87,6 +87,40 @@ To leave out apps that cannot render offline, list them in `skip`, by name or di
     skip: cilium,kubernetes/apps/default/echo-server
 ```
 
+## When the check fails
+
+| Input | Fails the check on | Off |
+|---|---|---|
+| `fail-on-diff` | a chart bump at that level: `breaking` (default), `pinned` or `changed` | `none` or `false` |
+| `fail-on-scan` | a key at that level: `dead`, `conditional` or `redundant` | `none` (default) or `false` |
+| `fail-on-error` | an app that cannot be analyzed: a chart that does not render or cannot be downloaded (`true`, default) | `false` |
+
+With `fail-on-error: false` the errors are still in the report and the comment, with a warning at the top, and the `status` output is still `2`. Findings at the fail-on levels still fail the check, and so does a command that fails as a whole (a wrong `path`, for instance). Telling the two apart needs `jq`, which GitHub-hosted runners have; on a self-hosted runner without it, errors fail the check as with `true`.
+
+To report without ever failing, for instance while trying the action on a repository:
+
+```yaml
+- uses: guarnz/deadvalues@v0
+  with:
+    fail-on-diff: false
+    fail-on-error: false
+```
+
+To keep failing on breaking chart bumps but not on apps that cannot render in CI, such as a chart from a private registry:
+
+```yaml
+- uses: guarnz/deadvalues@v0
+  with:
+    fail-on-error: false
+```
+
+The comment then starts with:
+
+```
+> [!WARNING]
+> Some apps could not be analyzed, see the errors below. This repository's workflow sets `fail-on-error: false`, so the check passes anyway.
+```
+
 ## Your own command
 
 ```yaml
@@ -162,8 +196,9 @@ The `version` input overrides it: an exact tag such as `v0.1.0`, or `latest`. Re
 | `base` | from the event | Ref or SHA to compare with |
 | `args` | | Run this command instead of the built-in flow |
 | `skip` | | Apps or directories to leave out of the built-in flow, comma-separated: an app by its name, `namespace/name` or the name in the report |
-| `fail-on-diff` | `breaking` | `breaking`, `pinned`, `changed` or `none` |
-| `fail-on-scan` | `none` | `dead`, `conditional`, `redundant` or `none` |
+| `fail-on-diff` | `breaking` | `breaking`, `pinned`, `changed`, `none` or `false` (the same as `none`) |
+| `fail-on-scan` | `none` | `dead`, `conditional`, `redundant`, `none` or `false` (the same as `none`) |
+| `fail-on-error` | `true` | `true` or `false`; with `false` an app that cannot be analyzed is reported but does not fail the check, see [When the check fails](#when-the-check-fails) |
 | `comment` | `true` | Post or update the pull request comment |
 | `version` | the action's ref | Release to install, e.g. `v0.1.0`, or `latest`; see [Versions](#versions) |
 | `github-token` | `github.token` | Token to download the release and comment |
@@ -175,6 +210,6 @@ The `version` input overrides it: an exact tag such as `v0.1.0`, or `latest`. Re
 | Output | Description |
 |---|---|
 | `report` | Path of the Markdown report |
-| `status` | `0` nothing at the fail-on levels, `1` findings, `2` errors |
+| `status` | `0` nothing at the fail-on levels, `1` findings, `2` errors (also with `fail-on-error: false`) |
 | `base` | The base that was compared with, empty when there was none |
 | `version` | The installed version |

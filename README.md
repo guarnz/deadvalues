@@ -208,7 +208,7 @@ jobs:
           path: apps
 ```
 
-It compares the change with the state before it (the pull request base, or the commit before the push), diffs the chart bumps and scans the apps whose files changed. The report goes to the job summary and, on a pull request, to a single comment updated on every push. A `BREAKING` change fails the check, so Renovate does not automerge it.
+It compares the change with the state before it (the pull request base, or the commit before the push), diffs the chart bumps and scans the apps whose files changed. The report goes to the job summary and, on a pull request, to a single comment updated on every push. A `BREAKING` change fails the check, so Renovate does not automerge it. `fail-on-diff`, `fail-on-scan` and `fail-on-error` choose what fails it; set `fail-on-diff: false` and `fail-on-error: false` to only report.
 
 No script is needed around it: the action installs the release matching its ref, checks it against the release checksums, finds the base and runs both commands. On a large repository, only the apps a pull request touches are rendered.
 

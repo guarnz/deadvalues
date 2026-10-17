@@ -20,11 +20,14 @@ inputs:
     description: Apps or directories the built-in diff and scan leave out, comma-separated. An app by its name, namespace/name or the name in the report. Ignored when args is set.
     default: ""
   fail-on-diff:
-    description: "Fail when diff finds: breaking | pinned | changed | none."
+    description: "Fail when diff finds: breaking | pinned | changed | none. false is the same as none."
     default: breaking
   fail-on-scan:
-    description: "Fail when scan finds: dead | conditional | redundant | none."
+    description: "Fail when scan finds: dead | conditional | redundant | none. false is the same as none."
     default: none
+  fail-on-error:
+    description: "Fail when an app cannot be analyzed (a chart that does not render or cannot be downloaded): true | false. With false the errors are still reported."
+    default: "true"
   version:
     description: deadvalues release to install (e.g. v0.1.0), or latest. Default, the release matching the ref the action is used at
     default: ""
@@ -70,6 +73,7 @@ runs:
         PUSH_BEFORE: ${{ github.event.before }}
         FAIL_ON_DIFF: ${{ inputs.fail-on-diff }}
         FAIL_ON_SCAN: ${{ inputs.fail-on-scan }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
         SKIP: ${{ inputs.skip }}
       run: bash "$GITHUB_ACTION_PATH/scripts/action-run.sh"
     - name: Comment on the pull request
@@ -97,5 +101,5 @@ runs:
     - name: Fail on findings
       shell: bash
       env:
-        STATUS: ${{ steps.run.outputs.status }}
-      run: exit "$STATUS"
+        FAIL: ${{ steps.run.outputs.fail }}
+      run: exit "$FAIL"

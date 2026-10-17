@@ -2,8 +2,9 @@
 # Runs deadvalues for the GitHub Action and builds the Markdown report used for
 # the job summary and the pull request comment. The inputs come from the
 # environment set in action.yml. The script itself always exits 0; the exit
-# status of deadvalues goes to the "status" output and a later step fails the
-# job, so the comment is still posted when there are findings.
+# status of deadvalues goes to the "status" output, the code the job ends with
+# to "fail", and a later step fails the job, so the comment is still posted
+# when there are findings.
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -92,6 +93,19 @@ def src: if . == null or (.file // "") == "" then ""
 EOF
 )
 
+# problems_jq counts findings at $level the way the CLI's --fail-on does, for a
+# report whose command exited 2 because some app also failed.
+problems_jq=$(cat <<'EOF'
+({"breaking": ["BREAKING"], "pinned": ["BREAKING", "PINNED"], "changed": ["BREAKING", "PINNED", "CHANGED"],
+  "dead": ["DEAD"], "conditional": ["DEAD", "CONDITIONAL"], "redundant": ["DEAD", "CONDITIONAL", "REDUNDANT"]}[$level] // []) as $kinds
+| [.[] | if type == "array" then .[] else . end
+    | (.changes[]? | select(.ignored != true) | .kind),
+      (.keys[]? | select(.ignored != true and (.usedBy // "") == "" and ((.sharedWith // []) | length) == 0) | .status | split(" ")[0])
+    | select(. as $k | $kinds | index($k))]
+| length
+EOF
+)
+
 stats_jq='"[Apps: \($reports | map(select((.renders // 0) > 0 or (.error // "") != "") | .app) | unique | length)], [Renders: \($reports | map(.renders // 0) | add // 0)], [Run: \((($reports | map(.durationMs // 0) | add // 0) / 1000 | ceil))s]"'
 
 # output prints what the command with id $1 wrote and, when it failed, its errors.
@@ -139,15 +153,22 @@ summary() {
   echo
   if [[ -n "$blocker" ]]; then
     printf '> [!CAUTION]\n> %s\n\n' "$blocker"
-  elif [[ "$status" -ge 2 ]]; then
+  elif [[ "$fail" -ge 2 ]]; then
     printf '> [!CAUTION]\n> deadvalues could not analyze everything, see the errors below. The check fails.\n\n'
-  elif [[ "$status" -eq 1 ]]; then
+  elif [[ "$fail" -eq 1 ]]; then
     if [[ "${breaking:-0}" -eq 1 ]]; then
       printf '> [!CAUTION]\n> 1 breaking change: a chart upgrade stops reading a key you set. The check fails.\n\n'
     elif [[ "${breaking:-0}" -gt 1 ]]; then
       printf '> [!CAUTION]\n> %s breaking changes: a chart upgrade stops reading keys you set. The check fails.\n\n' "$breaking"
     else
       printf '> [!CAUTION]\n> Findings at the fail-on level. The check fails.\n\n'
+    fi
+  fi
+  if [[ "$status" -ge 2 ]] && [[ "$fail" -lt 2 ]]; then
+    if [[ "$fail" -eq 0 ]]; then
+      printf "> [!WARNING]\n> Some apps could not be analyzed, see the errors below. This repository's workflow sets \`fail-on-error: false\`, so the check passes anyway.\n\n"
+    else
+      printf "> [!WARNING]\n> Some apps could not be analyzed, see the errors below. This repository's workflow sets \`fail-on-error: false\`, so the errors alone do not fail the check.\n\n"
     fi
   fi
   if [[ -n "$note" ]]; then printf '> [!NOTE]\n> %s\n\n' "$note"; fi
@@ -194,6 +215,14 @@ case "$MODE" in
     exit 2
     ;;
 esac
+fail_on_error="${FAIL_ON_ERROR:-true}"
+case "${fail_on_error,,}" in
+  true|false) fail_on_error="${fail_on_error,,}" ;;
+  *)
+    echo "::error title=deadvalues::fail-on-error must be true or false, got \"$fail_on_error\""
+    exit 2
+    ;;
+esac
 
 base=""
 if [[ -z "${ARGS:-}" ]]; then
@@ -221,9 +250,13 @@ if [[ -z "${ARGS:-}" ]]; then
 fi
 
 diff_fail=()
-if [[ -n "${FAIL_ON_DIFF:-}" ]]; then diff_fail=(--fail-on "$FAIL_ON_DIFF"); fi
 scan_fail=()
-if [[ -n "${FAIL_ON_SCAN:-}" ]]; then scan_fail=(--fail-on "$FAIL_ON_SCAN"); fi
+diff_level="${FAIL_ON_DIFF:-}"
+scan_level="${FAIL_ON_SCAN:-}"
+if [[ "${diff_level,,}" = "false" ]]; then diff_level=none; fi
+if [[ "${scan_level,,}" = "false" ]]; then scan_level=none; fi
+if [[ -n "$diff_level" ]]; then diff_fail=(--fail-on "$diff_level"); fi
+if [[ -n "$scan_level" ]]; then scan_fail=(--fail-on "$scan_level"); fi
 skip=()
 if [[ -n "${SKIP:-}" ]]; then skip=(--skip "$SKIP"); fi
 
@@ -237,6 +270,7 @@ elif [[ "$MODE" = "diff" ]] && [[ -z "$base" ]]; then
 else
   if [[ -n "$base" ]] && [[ "$MODE" != "scan" ]]; then
     dv diff "$APPS" --base "$base" ${diff_fail[@]+"${diff_fail[@]}"} ${skip[@]+"${skip[@]}"}
+    echo "${diff_level:-breaking}" > "$work/$n.level"
   fi
   if [[ "$MODE" != "diff" ]]; then
     if [[ -n "$base" ]]; then
@@ -246,20 +280,44 @@ else
       note="$note Every app was scanned."
       dv scan "$APPS" --details ${scan_fail[@]+"${scan_fail[@]}"} ${skip[@]+"${skip[@]}"}
     fi
+    echo "${scan_level:-dead}" > "$work/$n.level"
   fi
+fi
+
+# fail is the code the job ends with. With fail-on-error false, an app that
+# could not be analyzed does not fail it; findings and failed commands still do.
+fail=$status
+if [[ "$status" -ge 2 ]] && [[ "$fail_on_error" = "false" ]] && [[ -z "$blocker" ]] && [[ -z "${ARGS:-}" ]] && command -v jq >/dev/null; then
+  fail=0
+  for ((i = 1; i <= n; i++)); do
+    rc="$(cat "$work/$i.rc")"
+    if [[ "$rc" -eq 1 ]]; then
+      fail=$((fail > 1 ? fail : 1))
+    elif [[ "$rc" -ge 2 ]]; then
+      if [[ ! -s "$work/$i.json" ]] || [[ "$(jq -s '[.[] | if type == "array" then .[] else . end | select((.error // "") != "")] | length' "$work/$i.json")" -eq 0 ]]; then
+        fail=2
+      elif [[ "$(jq -s --arg level "$(cat "$work/$i.level")" "$problems_jq" "$work/$i.json")" -gt 0 ]]; then
+        fail=$((fail > 1 ? fail : 1))
+      fi
+    fi
+  done
 fi
 
 summary > "$report"
 
-case "$status" in
+case "$fail" in
   0) echo "deadvalues: nothing at or above the fail-on levels" ;;
   1) echo "::error title=deadvalues::findings at or above the fail-on levels, see the job summary" ;;
   *) echo "::error title=deadvalues::deadvalues could not analyze every target, see the job summary" ;;
 esac
+if [[ "$status" -ge 2 ]] && [[ "$fail" -lt 2 ]]; then
+  echo "::warning title=deadvalues::deadvalues could not analyze every target; fail-on-error is false, so the errors do not fail the check. See the job summary"
+fi
 
 cat "$report" >> "$GITHUB_STEP_SUMMARY"
 {
   echo "report=$report"
   echo "status=$status"
+  echo "fail=$fail"
   echo "base=$base"
 } >> "$GITHUB_OUTPUT"
