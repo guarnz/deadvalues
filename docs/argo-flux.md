@@ -43,6 +43,8 @@
 
 The Flux `Kustomization` is the one whose `spec.path` is the HelmRelease's directory, or the closest directory above it.
 
+YAML anchors and aliases (`name: &app web`, then `targetNamespace: *namespace` or `APP: *app`) are followed in every field of HelmReleases, Kustomizations and sources, as Flux reads them.
+
 A HelmRelease is shown as `<namespace>/<name>`. When several sources or ConfigMaps have the same name, a ConfigMap from a `configMapGenerator` wins, then an object in the same namespace, then the one whose directory shares the longest prefix with the HelmRelease (`clusters/staging` versus `clusters/production`).
 
 ## Kustomize overlays

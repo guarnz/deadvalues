@@ -200,8 +200,16 @@ func Get(n *yaml.Node, path ...string) *yaml.Node {
 	return v
 }
 
+// deref follows a YAML alias (*name) to the node its anchor marks.
+func deref(n *yaml.Node) *yaml.Node {
+	for n != nil && n.Kind == yaml.AliasNode {
+		n = n.Alias
+	}
+	return n
+}
+
 func lookup(n *yaml.Node, path []string) (key, value *yaml.Node) {
-	cur := n
+	cur := deref(n)
 	for _, k := range path {
 		if cur == nil || cur.Kind != yaml.MappingNode {
 			return nil, nil
@@ -216,7 +224,7 @@ func lookup(n *yaml.Node, path []string) (key, value *yaml.Node) {
 		if next == nil {
 			return nil, nil
 		}
-		cur = next
+		cur = deref(next)
 	}
 	return key, cur
 }

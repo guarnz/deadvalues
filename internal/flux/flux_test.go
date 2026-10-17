@@ -341,6 +341,36 @@ spec:
 	}
 }
 
+func TestKustomizationAliases(t *testing.T) {
+	root := t.TempDir()
+	objs, err := ParseYAML([]byte(`apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: &app ollama
+  namespace: &namespace ai
+spec:
+  targetNamespace: *namespace
+  path: ./apps/ai/ollama/app
+  postBuild:
+    substitute:
+      APP: *app
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := &Index{Objects: objs}
+	ks := ix.KustomizationFor(root, filepath.Join(root, "apps", "ai", "ollama", "app"))
+	if ks == nil {
+		t.Fatal("no Kustomization found for the app")
+	}
+	if got := Str(ks.Node, "spec", "targetNamespace"); got != "ai" {
+		t.Errorf("targetNamespace = %q, want the anchored value ai", got)
+	}
+	if vars, _ := ix.Vars(ks); vars["APP"] != "ollama" {
+		t.Errorf("APP = %q, want the anchored value ollama", vars["APP"])
+	}
+}
+
 func TestResolveAnchorsOutsideValues(t *testing.T) {
 	repo, err := ParseYAML([]byte("apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata: {name: http, namespace: ns}\nspec: {url: https://charts.example.com}\n"))
 	if err != nil {

@@ -32,7 +32,7 @@ func (ix *Index) Vars(ks *Object) (map[string]string, []string) {
 	}
 	if sub := Get(ks.Node, "spec", "postBuild", "substitute"); sub != nil && sub.Kind == yaml.MappingNode {
 		for i := 0; i+1 < len(sub.Content); i += 2 {
-			vars[sub.Content[i].Value] = sub.Content[i+1].Value
+			vars[sub.Content[i].Value] = Str(sub.Content[i+1])
 		}
 	}
 	return vars, notes
