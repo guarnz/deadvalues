@@ -155,6 +155,12 @@ func (ix *Index) Find(kind, name, namespace, near string) *Object {
 
 // KustomizationFor returns the Flux Kustomization whose spec.path is closest above dir.
 func (ix *Index) KustomizationFor(root, dir string) *Object {
+	if a, err := filepath.Abs(root); err == nil {
+		root = a
+	}
+	if a, err := filepath.Abs(dir); err == nil {
+		dir = a
+	}
 	byPath := map[string]*Object{}
 	for _, o := range ix.Objects {
 		if o.Kind != "Kustomization" || !strings.HasPrefix(o.APIVersion, "kustomize.toolkit.fluxcd.io/") {

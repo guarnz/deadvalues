@@ -68,7 +68,9 @@ staging:podinfo/podinfo     podinfo 6.15.0      0      0          0      7
 
 ## Flux variables
 
-Flux `${var}` placeholders can be given values in `.deadvalues.yaml`:
+`${var}` placeholders get the `postBuild` variables of the Flux `Kustomization` that applies the directory, as on the cluster: `substituteFrom` ConfigMaps and Secrets found in the repository, then `substitute` on top. A source that is not in the repository, or is SOPS-encrypted, is reported as a note and its variables stay as `${var}` text; an `optional` one is skipped.
+
+Values in `.deadvalues.yaml` win over both, and cover variables a parent `Kustomization` injects into its children with `patches`, which are not followed:
 
 ```yaml
 flux:

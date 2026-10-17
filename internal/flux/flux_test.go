@@ -3,6 +3,7 @@ package flux
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -236,6 +237,65 @@ spec: {path: ./apps/default/echo}
 		if got != tt.want {
 			t.Errorf("KustomizationFor(%s) = %q, want %q", tt.dir, got, tt.want)
 		}
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel, err := filepath.Rel(wd, filepath.Join(root, "apps", "kube-system", "cilium", "app"))
+	if err != nil {
+		t.Skip("no relative path to the temp dir on this system")
+	}
+	if ks := ix.KustomizationFor(root, rel); ks == nil || ks.Name != "cilium" {
+		t.Errorf("a relative dir, as --app passes it, should find the cilium Kustomization: %v", ks)
+	}
+}
+
+func TestKustomizationVars(t *testing.T) {
+	objs, err := ParseYAML([]byte(`apiVersion: v1
+kind: ConfigMap
+metadata: {name: cluster-settings, namespace: flux-system}
+data: {CLUSTER: main, REGION: eu}
+---
+apiVersion: v1
+kind: Secret
+metadata: {name: cluster-secrets, namespace: flux-system}
+stringData: {DOMAIN: example.com}
+data: {TOKEN: c2VjcmV0}
+---
+apiVersion: v1
+kind: Secret
+metadata: {name: encrypted, namespace: flux-system}
+stringData: {KEY: "ENC[AES256_GCM,data:abc]"}
+sops: {version: 3.9.0}
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: {name: app, namespace: flux-system}
+spec:
+  path: ./apps/app
+  postBuild:
+    substitute: {APP: web, REGION: us}
+    substituteFrom:
+      - {kind: ConfigMap, name: cluster-settings}
+      - {kind: Secret, name: cluster-secrets}
+      - {kind: Secret, name: absent}
+      - {kind: ConfigMap, name: also-absent, optional: true}
+      - {kind: Secret, name: encrypted}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := &Index{Objects: objs}
+	vars, notes := ix.Vars(objs[3])
+	want := map[string]string{"APP": "web", "CLUSTER": "main", "REGION": "us", "DOMAIN": "example.com", "TOKEN": "secret"}
+	if !reflect.DeepEqual(vars, want) {
+		t.Errorf("vars = %v, want %v", vars, want)
+	}
+	all := strings.Join(notes, "\n")
+	if len(notes) != 2 || !strings.Contains(all, "Secret absent are not in the repository") || !strings.Contains(all, "Secret encrypted are SOPS-encrypted") {
+		t.Errorf("notes = %q, want the absent and the encrypted Secret only", notes)
 	}
 }
 

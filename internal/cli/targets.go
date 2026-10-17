@@ -264,7 +264,8 @@ func (g *globals) fluxFileJobs(files []string, root string, t *targetFlags, filt
 	var failed []*report.Check
 	for _, f := range files {
 		res.Namespace = g.fluxTargetNamespace(root, filepath.Dir(f))
-		objs, err := flux.ParseFile(f, g.cfg.Flux.Substitute)
+		vars, varNotes := g.fluxVars(root, filepath.Dir(f))
+		objs, err := flux.ParseFile(f, vars)
 		if err != nil {
 			failed = append(failed, report.Failed(f, err))
 			continue
@@ -288,6 +289,7 @@ func (g *globals) fluxFileJobs(files []string, root string, t *targetFlags, filt
 				failed = append(failed, report.Failed(rel.ID, err))
 				continue
 			}
+			j.notes = append(append([]string{}, j.notes...), varNotes...)
 			jobs = append(jobs, j)
 		}
 	}
@@ -301,7 +303,8 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 		return nil, nil
 	}
 	name := relPath(root, dir)
-	out, err := flux.Build(dir, g.cfg.Flux.Substitute)
+	vars, varNotes := g.fluxVars(root, dir)
+	out, err := flux.Build(dir, vars)
 	if err != nil {
 		return nil, []*report.Check{report.Failed(name, fmt.Errorf("kustomize build: %w", err))}
 	}
@@ -309,7 +312,7 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 	if err != nil {
 		return nil, []*report.Check{report.Failed(name, err)}
 	}
-	attr := flux.NewAttributor(flux.Tree(dir), g.cfg.Flux.Substitute)
+	attr := flux.NewAttributor(flux.Tree(dir), vars)
 	res := &flux.Resolver{
 		RepoRoot:  root,
 		Sources:   &flux.Index{Objects: append(append([]*flux.Object{}, flux.TreeGenerators(dir)...), objs...)},
@@ -337,6 +340,7 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 			failed = append(failed, report.Failed(prefixed(label, rel.ID), err))
 			continue
 		}
+		j.notes = append(append([]string{}, j.notes...), varNotes...)
 		jobs = append(jobs, j)
 	}
 	return jobs, failed
@@ -348,6 +352,19 @@ func (g *globals) fluxTargetNamespace(root, dir string) string {
 		return flux.Str(ks.Node, "spec", "targetNamespace")
 	}
 	return ""
+}
+
+// fluxVars are the Flux Kustomization's postBuild variables, with flux.substitute on top.
+func (g *globals) fluxVars(root, dir string) (map[string]string, []string) {
+	vars := map[string]string{}
+	var notes []string
+	if ks := g.repoIndex(root).KustomizationFor(root, dir); ks != nil {
+		vars, notes = g.repoIndex(root).Vars(ks)
+	}
+	for k, v := range g.cfg.Flux.Substitute {
+		vars[k] = v
+	}
+	return vars, notes
 }
 
 // appNames lists the names --only and --skip accept for a HelmRelease: its
