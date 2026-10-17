@@ -304,7 +304,8 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 	}
 	name := relPath(root, dir)
 	vars, varNotes := g.fluxVars(root, dir)
-	out, err := flux.Build(dir, vars)
+	components := g.fluxComponents(root, dir)
+	out, err := flux.Build(dir, vars, components...)
 	if err != nil {
 		return nil, []*report.Check{report.Failed(name, fmt.Errorf("kustomize build: %w", err))}
 	}
@@ -312,10 +313,10 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 	if err != nil {
 		return nil, []*report.Check{report.Failed(name, err)}
 	}
-	attr := flux.NewAttributor(flux.Tree(dir), vars)
+	attr := flux.NewAttributor(flux.Tree(dir, components...), vars)
 	res := &flux.Resolver{
 		RepoRoot:  root,
-		Sources:   &flux.Index{Objects: append(append([]*flux.Object{}, flux.TreeGenerators(dir)...), objs...)},
+		Sources:   &flux.Index{Objects: append(append([]*flux.Object{}, flux.TreeGenerators(dir, components...)...), objs...)},
 		Fallback:  g.repoIndex(root),
 		Attribute: attr.Origins,
 		Namespace: g.fluxTargetNamespace(root, dir),
@@ -365,6 +366,21 @@ func (g *globals) fluxVars(root, dir string) (map[string]string, []string) {
 		vars[k] = v
 	}
 	return vars, notes
+}
+
+// fluxComponents are the spec.components of the Flux Kustomization whose path is dir.
+func (g *globals) fluxComponents(root, dir string) []string {
+	ks := g.repoIndex(root).KustomizationFor(root, dir)
+	if ks == nil || filepath.Clean(filepath.Join(root, flux.Str(ks.Node, "spec", "path"))) != filepath.Clean(dir) {
+		return nil
+	}
+	var out []string
+	if list := flux.Get(ks.Node, "spec", "components"); list != nil {
+		for _, c := range list.Content {
+			out = append(out, c.Value)
+		}
+	}
+	return out
 }
 
 // appNames lists the names --only and --skip accept for a HelmRelease: its

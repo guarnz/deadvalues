@@ -203,6 +203,44 @@ spec:
 	}
 }
 
+func TestBuildAddsFluxComponents(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"app/kustomization.yaml":              "resources:\n  - base.yaml\npatches:\n  - path: patch.yaml\n",
+		"app/base.yaml":                       "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: base\n",
+		"app/patch.yaml":                      "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: extra\ndata:\n  patched: \"true\"\n",
+		"components/extra/kustomization.yaml": "apiVersion: kustomize.config.k8s.io/v1alpha1\nkind: Component\nresources:\n  - extra.yaml\n",
+		"components/extra/extra.yaml":         "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: extra\n",
+	}
+	for name, content := range files {
+		p := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app := filepath.Join(root, "app")
+
+	if _, err := Build(app, nil); err == nil {
+		t.Fatal("without the component the patch has no target and the build should fail")
+	}
+	out, err := Build(app, nil, "../components/extra")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "patched: \"true\"") {
+		t.Errorf("the component's ConfigMap should be patched:\n%s", out)
+	}
+	if tree := strings.Join(Tree(app, "../components/extra"), "\n"); !strings.Contains(tree, filepath.Join("components", "extra", "extra.yaml")) {
+		t.Errorf("Tree should list the component's files:\n%s", tree)
+	}
+	if data, _ := os.ReadFile(filepath.Join(app, "kustomization.yaml")); strings.Contains(string(data), "components") {
+		t.Error("the kustomization file on disk was changed")
+	}
+}
+
 func TestKustomizationFor(t *testing.T) {
 	root := t.TempDir()
 	objs, err := ParseYAML([]byte(`apiVersion: kustomize.toolkit.fluxcd.io/v1

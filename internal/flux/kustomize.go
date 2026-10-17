@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -113,11 +114,11 @@ func Roots(dir string) ([]string, error) {
 
 // Tree returns the local files that make up the build of dir, in kustomize
 // order: resources (recursively) first, then patches.
-func Tree(dir string) []string {
+func Tree(dir string, components ...string) []string {
 	var out []string
 	seen := map[string]bool{}
-	var walk func(dir string)
-	walk = func(dir string) {
+	var walk func(dir string, extra []string)
+	walk = func(dir string, extra []string) {
 		dir = filepath.Clean(dir)
 		if seen[dir] {
 			return
@@ -127,7 +128,7 @@ func Tree(dir string) []string {
 		if !ok {
 			return
 		}
-		for _, r := range append(append([]string{}, k.Resources...), k.Components...) {
+		for _, r := range append(append(append([]string{}, k.Resources...), k.Components...), extra...) {
 			if isRemote(r) {
 				continue
 			}
@@ -136,7 +137,7 @@ func Tree(dir string) []string {
 			switch {
 			case err != nil:
 			case info.IsDir():
-				walk(p)
+				walk(p, nil)
 			default:
 				out = append(out, p)
 			}
@@ -152,17 +153,17 @@ func Tree(dir string) []string {
 			}
 		}
 	}
-	walk(dir)
+	walk(dir, components)
 	return out
 }
 
 // TreeGenerators returns the ConfigMaps declared by configMapGenerator
 // entries anywhere in dir's build.
-func TreeGenerators(dir string) []*Object {
+func TreeGenerators(dir string, components ...string) []*Object {
 	var out []*Object
 	seen := map[string]bool{}
-	var walk func(dir string)
-	walk = func(dir string) {
+	var walk func(dir string, extra []string)
+	walk = func(dir string, extra []string) {
 		dir = filepath.Clean(dir)
 		if seen[dir] {
 			return
@@ -173,15 +174,15 @@ func TreeGenerators(dir string) []*Object {
 		if !ok {
 			return
 		}
-		for _, r := range append(append([]string{}, k.Resources...), k.Components...) {
+		for _, r := range append(append(append([]string{}, k.Resources...), k.Components...), extra...) {
 			if p := filepath.Join(dir, r); !isRemote(r) {
 				if info, err := os.Stat(p); err == nil && info.IsDir() {
-					walk(p)
+					walk(p, nil)
 				}
 			}
 		}
 	}
-	walk(dir)
+	walk(dir, components)
 	return out
 }
 
@@ -214,12 +215,16 @@ func generated(dir string) []*Object {
 }
 
 // Build runs kustomize on dir in process, the way Flux's kustomize-controller
-// does, and applies ${var} substitution to the output.
-func Build(dir string, vars map[string]string) ([]byte, error) {
+// does, adding Flux components and applying ${var} substitution to the output.
+func Build(dir string, vars map[string]string, components ...string) ([]byte, error) {
 	opts := krusty.MakeDefaultOptions()
 	opts.LoadRestrictions = types.LoadRestrictionsNone
 	opts.PluginConfig = types.DisabledPluginConfig()
-	m, err := krusty.MakeKustomizer(opts).Run(filesys.MakeFsOnDisk(), dir)
+	fsys := filesys.MakeFsOnDisk()
+	if len(components) > 0 {
+		fsys = withComponents{FileSystem: fsys, dir: filepath.Clean(dir), components: components}
+	}
+	m, err := krusty.MakeKustomizer(opts).Run(fsys, dir)
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +233,31 @@ func Build(dir string, vars map[string]string) ([]byte, error) {
 		return nil, err
 	}
 	return Substitute(out, vars), nil
+}
+
+// withComponents reads dir's kustomization with extra components, as Flux does
+// for spec.components, without changing the file.
+type withComponents struct {
+	filesys.FileSystem
+	dir        string
+	components []string
+}
+
+func (f withComponents) ReadFile(path string) ([]byte, error) {
+	data, err := f.FileSystem.ReadFile(path)
+	if err != nil || filepath.Clean(filepath.Dir(path)) != f.dir || !slices.Contains(kustomizationNames, filepath.Base(path)) {
+		return data, err
+	}
+	var k map[string]interface{}
+	if err := yaml.Unmarshal(data, &k); err != nil || k == nil {
+		return data, nil
+	}
+	list, _ := k["components"].([]interface{})
+	for _, c := range f.components {
+		list = append(list, c)
+	}
+	k["components"] = list
+	return yaml.Marshal(k)
 }
 
 // Attributor traces keys of a built HelmRelease back to the files of the

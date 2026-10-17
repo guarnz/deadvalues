@@ -7,7 +7,7 @@
 | Manifest | `Application`, single or multi-source | `HelmRelease` (`helm.toolkit.fluxcd.io/v2`) |
 | Chart | `repoURL` + `chart` + `targetRevision`, or a local `path` | `chart.spec.sourceRef` → `HelmRepository` (HTTP or OCI), `GitRepository` in the same repo; `chartRef` → `OCIRepository` or `HelmChart`. Semver ranges (`>=1.0.0`, `1.x`) are resolved |
 | Values | `valueFiles` (`$values/` refs), `values`, `valuesObject`, `parameters` | `valuesFrom` ConfigMaps/Secrets (manifests or `configMapGenerator`, `targetPath`, `optional`), then `spec.values` |
-| Overlays | — | A directory with a `kustomization.yaml` is built in process (the same kustomize library Flux uses), so patches are applied; each key still points to the file and line that set it |
+| Overlays | — | A directory with a `kustomization.yaml` is built in process (the same kustomize library Flux uses), so patches are applied; the `components` of the Flux `Kustomization` whose `spec.path` is that directory are added, as Flux does; each key still points to the file and line that set it |
 | Not read | `ApplicationSet` | the values of SOPS-encrypted Secrets and of sources not in the repository (reported as a note, see `valuesFrom` below), charts from other git repositories, `chart.spec.valuesFiles` (reported as a note), `${var}` you do not define (left as text) |
 
 ## Argo CD Applications
