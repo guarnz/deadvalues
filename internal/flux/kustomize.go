@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -222,7 +223,7 @@ func Build(dir string, vars map[string]string, components ...string) ([]byte, er
 	opts.PluginConfig = types.DisabledPluginConfig()
 	fsys := filesys.MakeFsOnDisk()
 	if len(components) > 0 {
-		fsys = withComponents{FileSystem: fsys, dir: filepath.Clean(dir), components: components}
+		fsys = withComponents{FileSystem: fsys, dir: canonical(dir), components: components}
 	}
 	m, err := krusty.MakeKustomizer(opts).Run(fsys, dir)
 	if err != nil {
@@ -245,7 +246,7 @@ type withComponents struct {
 
 func (f withComponents) ReadFile(path string) ([]byte, error) {
 	data, err := f.FileSystem.ReadFile(path)
-	if err != nil || filepath.Clean(filepath.Dir(path)) != f.dir || !slices.Contains(kustomizationNames, filepath.Base(path)) {
+	if err != nil || !slices.Contains(kustomizationNames, filepath.Base(path)) || canonical(filepath.Dir(path)) != f.dir {
 		return data, err
 	}
 	var k map[string]interface{}
@@ -258,6 +259,20 @@ func (f withComponents) ReadFile(path string) ([]byte, error) {
 	}
 	k["components"] = list
 	return yaml.Marshal(k)
+}
+
+// canonical spells a path one way: absolute, symlinks resolved, lower case on Windows.
+func canonical(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		p = real
+	}
+	if runtime.GOOS == "windows" {
+		return strings.ToLower(p)
+	}
+	return p
 }
 
 // Attributor traces keys of a built HelmRelease back to the files of the

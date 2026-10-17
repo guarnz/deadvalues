@@ -222,6 +222,10 @@ func TestBuildAddsFluxComponents(t *testing.T) {
 		}
 	}
 	app := filepath.Join(root, "app")
+	// Through a symlink, as macOS temp dirs are, the build must still find the overlay.
+	if link := filepath.Join(t.TempDir(), "link"); os.Symlink(root, link) == nil {
+		app = filepath.Join(link, "app")
+	}
 
 	if _, err := Build(app, nil); err == nil {
 		t.Fatal("without the component the patch has no target and the build should fail")
