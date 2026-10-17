@@ -252,7 +252,11 @@ func findingDetail(f probe.Finding) string {
 		if len(f.RequiresAPI) > 0 {
 			return short(f.Value) + "  (only when the cluster serves " + strings.Join(f.RequiresAPI, " + ") + ")"
 		}
-		return short(f.Value) + "  (only when " + values.Display(f.Toggle) + "=true)"
+		when := make([]string, len(f.Toggles))
+		for i, t := range f.Toggles {
+			when[i] = values.Display(t) + "=true"
+		}
+		return short(f.Value) + "  (only when " + strings.Join(when, " and ") + ")"
 	case probe.Group:
 		return short(f.Value) + "  (only effective as a group)"
 	case probe.Error:

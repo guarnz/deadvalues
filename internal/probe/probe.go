@@ -4,6 +4,7 @@ package probe
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -38,7 +39,7 @@ type Finding struct {
 	Default     interface{}
 	HasDefault  bool
 	Implicit    bool
-	Toggle      []string
+	Toggles     [][]string
 	RequiresAPI []string
 	Err         string
 }
@@ -250,7 +251,7 @@ func (p *prober) classify(path []string, sub interface{}) {
 	default:
 		if t := p.conditional(path); t != nil {
 			f.Status = Conditional
-			f.Toggle = t
+			f.Toggles = t
 		} else if apis := p.apiConditional(path); apis != nil {
 			f.Status = Conditional
 			f.RequiresAPI = apis
@@ -280,36 +281,44 @@ func (p *prober) removalMatters(v *variant, path []string) bool {
 	return err == nil && changed
 }
 
-// conditional looks for a disabled `enabled` flag that gates the key: first
-// next to the key and on its ancestors, then every `*.enabled: false` the
-// user set explicitly (e.g. kubeEtcd.enabled gating defaultRules.rules.etcd).
-// It turns the flag on and checks whether the key starts to matter.
-func (p *prober) conditional(path []string) []string {
+// conditional finds the disabled `enabled` flags that gate the key: one at a
+// time on its ancestors and the user's, then all of its ancestors' together.
+func (p *prober) conditional(path []string) [][]string {
 	tried := map[string]bool{values.Key(path): true}
-	var candidates [][]string
-	for i := len(path) - 1; i >= 1; i-- {
-		candidates = append(candidates, append(append([]string{}, path[:i]...), "enabled"))
+	var ancestors [][]string
+	for i := 1; i < len(path); i++ {
+		if t := append(append([]string{}, path[:i]...), "enabled"); p.disabled(t) && values.Key(t) != values.Key(path) {
+			ancestors = append(ancestors, t)
+		}
 	}
-	candidates = append(candidates, p.userToggles...)
+	candidates := append(slices.Clone(ancestors), p.userToggles...)
+	slices.Reverse(candidates[:len(ancestors)])
 
 	for _, toggle := range candidates {
-		if tried[values.Key(toggle)] {
+		if tried[values.Key(toggle)] || !p.disabled(toggle) {
 			continue
 		}
 		tried[values.Key(toggle)] = true
-		v, ok := values.Lookup(p.User, toggle)
-		if !ok {
-			v, ok = values.Lookup(p.Defaults, toggle)
+		if ctx := p.toggled(toggle); ctx.ok && p.removalMatters(ctx, path) {
+			return [][]string{toggle}
 		}
-		if b, isBool := v.(bool); !ok || !isBool || b {
-			continue
-		}
-		ctx := p.toggled(toggle)
-		if ctx.ok && p.removalMatters(ctx, path) {
-			return toggle
+	}
+	if len(ancestors) > 1 {
+		if ctx := p.toggled(ancestors...); ctx.ok && p.removalMatters(ctx, path) {
+			return ancestors
 		}
 	}
 	return nil
+}
+
+// disabled reports whether toggle is false in the user values or the defaults.
+func (p *prober) disabled(toggle []string) bool {
+	v, ok := values.Lookup(p.User, toggle)
+	if !ok {
+		v, ok = values.Lookup(p.Defaults, toggle)
+	}
+	b, isBool := v.(bool)
+	return ok && isBool && !b
 }
 
 // apiConditional checks whether the key starts to matter when the cluster
@@ -332,10 +341,16 @@ func (p *prober) apiConditional(path []string) []string {
 	return append([]string{}, p.MissingAPIs...)
 }
 
-func (p *prober) toggled(toggle []string) *variant {
-	return p.variant("toggle\x01"+values.Key(toggle), func() (map[string]interface{}, RenderFunc) {
+func (p *prober) toggled(toggles ...[]string) *variant {
+	keys := make([]string, len(toggles))
+	for i, t := range toggles {
+		keys[i] = values.Key(t)
+	}
+	return p.variant("toggle\x01"+strings.Join(keys, "\x02"), func() (map[string]interface{}, RenderFunc) {
 		u := values.CopyMap(p.User)
-		values.SetPath(u, toggle, true)
+		for _, t := range toggles {
+			values.SetPath(u, t, true)
+		}
 		return u, p.Render
 	})
 }

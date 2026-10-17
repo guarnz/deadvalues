@@ -9,7 +9,7 @@ deadvalues does not parse templates. It **renders the chart, removes each key yo
 3. For keys whose removal changes nothing:
    - equal to the chart default → `REDUNDANT`
    - a different value changes the output → `REDUNDANT (implicit)`: your value matches a fallback in the template (`default "X" .Values.y`)
-   - turning on a disabled `enabled` flag makes the key matter → `CONDITIONAL`
+   - turning on a disabled `enabled` flag, or all the disabled ones above the key together, makes the key matter → `CONDITIONAL`
    - declaring an API the chart checks with `.Capabilities.APIVersions.Has` (or `has ... .Capabilities.APIVersions`) makes the key matter → `CONDITIONAL` on that API
    - otherwise → `DEAD`
 
