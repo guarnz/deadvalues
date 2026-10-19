@@ -217,10 +217,14 @@ func (w *Writer) checksTable(cs []*Check, scan bool) {
 // totals is the one-line summary of a scan across every app.
 func (w *Writer) totals(cs []*Check) string {
 	p := w.Paint
-	var withDead, dead, cond, redundant, failed int
+	var withDead, dead, cond, redundant, failed, skipped int
 	for _, c := range cs {
 		if c.Error != "" {
 			failed++
+			continue
+		}
+		if c.Skipped != "" {
+			skipped++
 			continue
 		}
 		if c.Counts["DEAD"] > 0 {
@@ -247,6 +251,9 @@ func (w *Writer) totals(cs []*Check) string {
 		fmt.Sprintf("%d conditional", cond),
 		fmt.Sprintf("%d redundant", redundant),
 	}
+	if skipped > 0 {
+		parts = append(parts, p.Yellow(fmt.Sprintf("%d not analyzed", skipped)))
+	}
 	if failed > 0 {
 		parts = append(parts, p.Red(plural(failed, "error", "errors")))
 	}
@@ -257,6 +264,10 @@ func (w *Writer) checkTable(c *Check) {
 	p := w.Paint
 	if c.Error != "" {
 		fmt.Fprintf(w.Out, "%s  %s %s\n", p.Bold(c.App), p.Red("error:"), c.Error)
+		return
+	}
+	if c.Skipped != "" {
+		fmt.Fprintf(w.Out, "%s  %s %s\n", p.Bold(c.App), p.Yellow("not analyzed:"), c.Skipped)
 		return
 	}
 	if len(c.Values) == 0 {
@@ -356,6 +367,10 @@ func (w *Writer) scanSummary(cs []*Check) {
 			fmt.Fprintf(w.Out, "%-*s  %s %s\n", appW, c.App, p.Red("error:"), c.Error)
 			continue
 		}
+		if c.Skipped != "" {
+			fmt.Fprintf(w.Out, "%-*s  %s %s\n", appW, c.App, p.Yellow("not analyzed:"), c.Skipped)
+			continue
+		}
 		if len(c.Values) == 0 {
 			fmt.Fprintf(w.Out, "%-*s  %-*s  %5s  %5s  %9s  %5s\n", appW, c.App, chartW, c.Chart, "-", "-", "-", "-")
 			continue
@@ -377,6 +392,10 @@ func (w *Writer) checksMarkdown(cs []*Check, scan bool) {
 				fmt.Fprintf(w.Out, "| `%s` | **Error:** %s | | | | |\n", c.App, mdEscape(c.Error))
 				continue
 			}
+			if c.Skipped != "" {
+				fmt.Fprintf(w.Out, "| `%s` | _Not analyzed:_ %s | | | | |\n", c.App, mdEscape(c.Skipped))
+				continue
+			}
 			if len(c.Values) == 0 {
 				fmt.Fprintf(w.Out, "| `%s` | %s | - | - | - | - |\n", c.App, c.Chart)
 				continue
@@ -396,6 +415,10 @@ func (w *Writer) checksMarkdown(cs []*Check, scan bool) {
 		fmt.Fprintf(w.Out, "### `%s` — %s\n\n", c.App, c.Chart)
 		if c.Error != "" {
 			fmt.Fprintf(w.Out, "> **Error:** %s\n\n", mdEscape(c.Error))
+			continue
+		}
+		if c.Skipped != "" {
+			fmt.Fprintf(w.Out, "> **Not analyzed:** %s\n\n", mdEscape(c.Skipped))
 			continue
 		}
 		if len(c.Values) == 0 {
@@ -522,6 +545,11 @@ func (w *Writer) checkAnnotations(cs []*Check) []annotation {
 			out = append(out, annotation{rule: "error", level: "error", title: "deadvalues: " + c.App, message: c.Error, file: f})
 			continue
 		}
+		if c.Skipped != "" {
+			f, _ := w.firstFile(nil, c.AppFile)
+			out = append(out, annotation{rule: "not-analyzed", level: "note", title: "deadvalues: " + c.App, message: "not analyzed: " + c.Skipped, file: f})
+			continue
+		}
 		for _, k := range c.Keys {
 			if !k.Reportable() {
 				continue
@@ -593,14 +621,15 @@ func (w *Writer) github(as []annotation) {
 }
 
 var ruleText = map[string]string{
-	"dead":        "Value has no effect on the rendered chart",
-	"conditional": "Value only has an effect when a disabled feature is enabled",
-	"redundant":   "Value equals the chart default",
-	"breaking":    "Value stops having an effect in the new chart version",
-	"pinned":      "Value now pins a default the new chart version changed",
-	"changed":     "A default you do not set changed and alters the manifests",
-	"fixed":       "Value starts having an effect in the new chart version",
-	"error":       "deadvalues could not analyze the target",
+	"dead":         "Value has no effect on the rendered chart",
+	"conditional":  "Value only has an effect when a disabled feature is enabled",
+	"redundant":    "Value equals the chart default",
+	"breaking":     "Value stops having an effect in the new chart version",
+	"pinned":       "Value now pins a default the new chart version changed",
+	"changed":      "A default you do not set changed and alters the manifests",
+	"fixed":        "Value starts having an effect in the new chart version",
+	"error":        "deadvalues could not analyze the target",
+	"not-analyzed": "deadvalues found the target but cannot analyze it yet",
 }
 
 func (w *Writer) sarif(as []annotation) error {

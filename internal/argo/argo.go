@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -74,6 +75,8 @@ type Target struct {
 	Values      string
 	ValuesObj   map[string]interface{}
 	Parameters  []Parameter
+	// Skip is why a Helm source cannot be analyzed yet; it is reported, not rendered.
+	Skip string
 }
 
 var docSeparator = regexp.MustCompile(`(?m)^---\s*$`)
@@ -146,6 +149,11 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 		case s.Path != "":
 			dir := filepath.Join(repoRoot, filepath.FromSlash(s.Path))
 			if _, err := os.Stat(filepath.Join(dir, "Chart.yaml")); err != nil {
+				if s.Helm != nil {
+					t.Name = path.Base(strings.TrimSuffix(s.RepoURL, ".git"))
+					t.Skip = fmt.Sprintf("Helm chart at %s in %s is not in this repository; charts from other git repositories are not supported yet", s.Path, s.RepoURL)
+					out = append(out, t)
+				}
 				continue
 			}
 			t.Chart = source.Ref{Chart: dir}

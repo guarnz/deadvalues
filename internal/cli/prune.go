@@ -78,6 +78,9 @@ diff first.`,
 			var analyzed []done
 			skipped := map[string]bool{}
 			for _, j := range jobs {
+				if j.skip != "" {
+					continue
+				}
 				a, err := g.analyze(cmd.Context(), j, j.ref)
 				if err != nil {
 					return &exitError{code: 2, err: err}

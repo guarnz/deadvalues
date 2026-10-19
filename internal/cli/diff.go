@@ -258,6 +258,9 @@ func (g *globals) diffTarget(ctx context.Context, t *targetFlags, from, to, base
 	}
 	var reports []*report.Diff
 	for _, j := range jobs {
+		if j.skip != "" {
+			continue
+		}
 		if j.ref.IsLocal() {
 			if len(jobs) == 1 {
 				return nil, usageErr("%s: diff needs a versioned chart from a repository, not a local path", j.name)
@@ -365,7 +368,7 @@ func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string,
 	}
 	for _, j := range current {
 		o, ok := old[j.ident]
-		if !ok || j.ref.IsLocal() || o.ref.IsLocal() || o.ref == j.ref {
+		if !ok || j.skip != "" || o.skip != "" || j.ref.IsLocal() || o.ref.IsLocal() || o.ref == j.ref {
 			continue
 		}
 		reports = append(reports, g.diff(ctx, j, o.ref, j.ref))

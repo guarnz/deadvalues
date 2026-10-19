@@ -502,7 +502,7 @@ func TestEveryApplicationInAFile(t *testing.T) {
 	root := t.TempDir()
 	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
 	app := func(name, path string) string {
-		return `apiVersion: argoproj.io/v1alpha1
+		body := `apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: ` + name + `
@@ -512,10 +512,11 @@ spec:
   source:
     repoURL: https://example.com/repo
     path: ` + path + `
-    helm:
-      values: |
-        name: ` + name + `
 `
+		if strings.HasPrefix(path, "charts/") {
+			body += "    helm:\n      values: |\n        name: " + name + "\n"
+		}
+		return body
 	}
 	file := filepath.Join(root, "apps", "all.yaml")
 	writeFile(t, file, "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: apps\n---\n"+
@@ -538,6 +539,66 @@ spec:
 	out, code = runCLI(t, "check", "--app", file, "--repo-root", root, "-o", "json", "--fail-on", "none")
 	if code != 0 || !slices.Equal(names(out), want) {
 		t.Errorf("check --app: exit %d, apps %v, want %v\n%s", code, names(out), want, out)
+	}
+}
+
+func TestChartFromAnotherGitRepoIsNotAnalyzed(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	writeFile(t, filepath.Join(root, "apps", "web.yaml"), `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+spec:
+  source:
+    repoURL: https://example.com/repo
+    path: charts/cases
+    helm:
+      values: |
+        name: web
+`)
+	vault := filepath.Join(root, "apps", "vault.yaml")
+	writeFile(t, vault, `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+spec:
+  source:
+    repoURL: https://github.com/hashicorp/vault-helm.git
+    targetRevision: v0.25.0
+    path: .
+    helm:
+      values: |
+        server:
+          ha:
+            enabled: true
+`)
+	byApp := func(out string) map[string]anyCheck {
+		t.Helper()
+		m := map[string]anyCheck{}
+		for _, c := range decodeChecks(t, out) {
+			m[c.App] = c
+		}
+		return m
+	}
+
+	out, code := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
+	got := byApp(out)
+	if code != 0 || got["vault"].Skipped == "" || got["vault"].Error != "" || got["web"].Error != "" {
+		t.Errorf("scan: exit %d, want vault reported as not analyzed, not as an error\n%s", code, out)
+	}
+	if !strings.Contains(got["vault"].Skipped, "vault-helm") {
+		t.Errorf("the reason should name the chart repository: %q", got["vault"].Skipped)
+	}
+
+	out, code = runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "--fail-on", "none")
+	if code != 0 || !strings.Contains(out, "not analyzed:") || !strings.Contains(out, "1 not analyzed") {
+		t.Errorf("table: exit %d, want a not analyzed row and count\n%s", code, out)
+	}
+
+	out, code = runCLI(t, "check", "--app", vault, "--repo-root", root, "-o", "json")
+	if code != 0 || byApp(out)["vault"].Skipped == "" {
+		t.Errorf("check --app: exit %d, want vault reported as not analyzed\n%s", code, out)
 	}
 }
 

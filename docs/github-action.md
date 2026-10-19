@@ -97,6 +97,8 @@ To leave out apps that cannot render offline, list them in `skip`, by name or di
 
 With `fail-on-error: false` the errors are still in the report and the comment, with a warning at the top, and the `status` output is still `2`. Findings at the fail-on levels still fail the check, and so does a command that fails as a whole (a wrong `path`, for instance). Telling the two apart needs `jq`, which GitHub-hosted runners have; on a self-hosted runner without it, errors fail the check as with `true`.
 
+An app listed as not analyzed (a target deadvalues finds but does not support yet, such as an Argo CD Helm chart from another git repository) is shown in the comment with its reason and never fails the check, whatever `fail-on-error` says.
+
 To report without ever failing, for instance while trying the action on a repository:
 
 ```yaml
