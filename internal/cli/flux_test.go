@@ -348,12 +348,7 @@ spec:
 	}
 	writeFile(t, filepath.Join(root, "apps", "cases.yaml"), release("0.1.0"))
 	writeFile(t, filepath.Join(root, "apps", "unchanged.yaml"), strings.ReplaceAll(release("0.1.0"), "name: cases\n  namespace", "name: other\n  namespace"))
-	git := func(args ...string) {
-		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	git := gitIn(t, root)
 	git("init", "-q")
 	git("add", "-A")
 	git("commit", "-qm", "base")
@@ -435,12 +430,7 @@ spec:
 	}
 	app := filepath.Join(root, "apps", "cases.yaml")
 	writeFile(t, app, manifest("0.1.0"))
-	git := func(args ...string) {
-		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	git := gitIn(t, root)
 	git("init", "-q", "-b", "main")
 	git("add", "-A")
 	git("commit", "-qm", "base")
@@ -514,12 +504,7 @@ spec:
 	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
 	writeFile(t, filepath.Join(root, "charts", "cases", "ci", "test-values.yaml"), "name: app\n")
 	writeFile(t, filepath.Join(root, "orphan.yaml"), "a: 1\n")
-	git := func(args ...string) {
-		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	git := gitIn(t, root)
 	git("init", "-q", "-b", "main")
 	git("add", "-A")
 	git("commit", "-qm", "base")

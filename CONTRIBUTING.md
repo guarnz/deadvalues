@@ -56,6 +56,7 @@ go test ./...
 - Changed an output? Run `go test ./internal/cli -run Golden -update` and review the golden files.
 - Changed a script in `scripts/`? Run `shellcheck` on it.
 - CI fails if coverage drops below 80% in total or 90% in `internal/probe` (see `.testcoverage.yml`).
+- Adding a test in `internal/cli`? Build the case with the existing helpers: `writeFile` and `copyDir` for files and charts, `gitIn` for a repository with history, `fluxFixture`, `sharedRepo` or `helmRepo` for a ready-made setup, and `runCLI` to run a command and get its output and exit code.
 
 No Go installed? The same commands run in the `golang` image:
 

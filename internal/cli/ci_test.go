@@ -91,12 +91,7 @@ spec:
 		writeFile(t, filepath.Join(root, "apps", name+".yaml"), app(name))
 		writeFile(t, filepath.Join(root, "values", name+".yaml"), string(data))
 	}
-	git := func(args ...string) {
-		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	git := gitIn(t, root)
 	git("init", "-q")
 	git("add", "-A")
 	git("commit", "-qm", "base")
@@ -134,12 +129,7 @@ spec:
 
 func TestScanChangedSinceJudgesSharedFiles(t *testing.T) {
 	root := sharedRepo(t)
-	git := func(args ...string) {
-		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	git := gitIn(t, root)
 	git("init", "-q")
 	git("add", "-A")
 	git("commit", "-qm", "base")
@@ -170,12 +160,7 @@ func TestScanChangedSinceJudgesSharedFiles(t *testing.T) {
 
 func TestScanChangedSinceUsesMergeBase(t *testing.T) {
 	root := sharedRepo(t)
-	git := func(args ...string) {
-		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	git := gitIn(t, root)
 	git("init", "-q", "-b", "main")
 	git("add", "-A")
 	git("commit", "-qm", "base")
