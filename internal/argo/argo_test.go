@@ -1,9 +1,59 @@
 package argo
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
+
+func TestBuildEnvInParametersAndValueFiles(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{"chart/Chart.yaml", "chart/values/web.yaml", "envs/apps.yaml"} {
+		p := filepath.Join(root, filepath.FromSlash(f))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("name: x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apps, err := Parse([]byte(`apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+spec:
+  project: infra
+  destination:
+    namespace: apps
+  sources:
+    - repoURL: https://example.com/repo
+      ref: values
+    - repoURL: https://example.com/repo
+      path: chart
+      helm:
+        valueFiles:
+          - values/$ARGOCD_APP_NAME.yaml
+          - $values/envs/${ARGOCD_APP_NAMESPACE}.yaml
+        parameters:
+          - name: tag
+            value: $ARGOCD_APP_PROJECT_NAME-${ARGOCD_APP_NAME}-$$x-$UNKNOWN
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, err := apps[0].Targets(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{filepath.Join(root, "chart", "values", "web.yaml"), filepath.Join(root, "envs", "apps.yaml")}
+	if got := targets[0].ValueFiles; !reflect.DeepEqual(got, want) {
+		t.Errorf("value files %v, want %v", got, want)
+	}
+	if got := targets[0].Parameters[0].Value; got != "infra-web-$x-" {
+		t.Errorf("parameter %q, want %q", got, "infra-web-$x-")
+	}
+}
 
 func TestHelmCapabilitiesReachTheTarget(t *testing.T) {
 	apps, err := Parse([]byte(`apiVersion: argoproj.io/v1alpha1

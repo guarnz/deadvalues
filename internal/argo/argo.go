@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"sigs.k8s.io/yaml"
 
@@ -21,6 +22,7 @@ type Application struct {
 	File      string
 	Name      string
 	Namespace string
+	Project   string
 	Sources   []Source
 }
 
@@ -57,6 +59,7 @@ type manifest struct {
 		Name string `json:"name"`
 	} `json:"metadata"`
 	Spec struct {
+		Project     string   `json:"project"`
 		Source      *Source  `json:"source"`
 		Sources     []Source `json:"sources"`
 		Destination struct {
@@ -117,7 +120,7 @@ func Parse(data []byte) ([]*Application, error) {
 		if m.Kind != "Application" {
 			continue
 		}
-		app := &Application{Name: m.Metadata.Name, Namespace: m.Spec.Destination.Namespace}
+		app := &Application{Name: m.Metadata.Name, Namespace: m.Spec.Destination.Namespace, Project: m.Spec.Project}
 		if m.Spec.Source != nil {
 			app.Sources = append(app.Sources, *m.Spec.Source)
 		}
@@ -147,6 +150,7 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 			continue
 		}
 		t := Target{App: a.Name, SourceIndex: i, Namespace: a.Namespace, Release: a.Name}
+		env := a.buildEnv(s, repoRoot)
 		local := false
 		switch {
 		case s.Chart != "":
@@ -178,7 +182,7 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 			}
 			t.KubeVersion, t.APIVersions = h.KubeVersion, h.APIVersions
 			for _, vf := range h.ValueFiles {
-				p, err := resolveValueFile(vf, repoRoot, s, local, refs)
+				p, err := resolveValueFile(vf, repoRoot, s, local, refs, env)
 				if err != nil {
 					return nil, fmt.Errorf("%s: %w", a.Name, err)
 				}
@@ -192,7 +196,10 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 			}
 			t.Values = h.Values
 			t.ValuesObj = h.ValuesObject
-			t.Parameters = h.Parameters
+			for _, p := range h.Parameters {
+				p.Value = envsubst(p.Value, env)
+				t.Parameters = append(t.Parameters, p)
+			}
 		}
 		out = append(out, t)
 	}
@@ -207,18 +214,67 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 	return out, nil
 }
 
-func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string]bool) (string, error) {
+func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string]bool, env map[string]string) (string, error) {
 	if strings.HasPrefix(vf, "$") {
 		ref, rest, _ := strings.Cut(strings.TrimPrefix(vf, "$"), "/")
 		if !refs[ref] {
 			return "", fmt.Errorf("value file %s: no source with ref %q", vf, ref)
 		}
-		return filepath.Join(repoRoot, filepath.FromSlash(rest)), nil
+		return filepath.Join(repoRoot, filepath.FromSlash(envsubst(rest, env))), nil
 	}
 	if !local {
 		return "", fmt.Errorf("value file %s is relative to a remote chart; only $ref/ paths are supported", vf)
 	}
-	return filepath.Join(repoRoot, filepath.FromSlash(s.Path), filepath.FromSlash(vf)), nil
+	return filepath.Join(repoRoot, filepath.FromSlash(s.Path), filepath.FromSlash(envsubst(vf, env))), nil
+}
+
+// buildEnv is the Argo CD build environment of a source, as substituted in Helm
+// parameters and value file paths; the revision is the chart version or the checkout's HEAD.
+func (a *Application) buildEnv(s Source, repoRoot string) map[string]string {
+	rev := s.TargetRevision
+	if s.Chart == "" {
+		if head := headRevision(repoRoot); head != "" {
+			rev = head
+		}
+	}
+	short := func(n int) string { return rev[:min(n, len(rev))] }
+	return map[string]string{
+		"ARGOCD_APP_NAME":                   a.Name,
+		"ARGOCD_APP_NAMESPACE":              a.Namespace,
+		"ARGOCD_APP_PROJECT_NAME":           a.Project,
+		"ARGOCD_APP_REVISION":               rev,
+		"ARGOCD_APP_REVISION_SHORT":         short(7),
+		"ARGOCD_APP_REVISION_SHORT_8":       short(8),
+		"ARGOCD_APP_SOURCE_REPO_URL":        s.RepoURL,
+		"ARGOCD_APP_SOURCE_PATH":            s.Path,
+		"ARGOCD_APP_SOURCE_TARGET_REVISION": s.TargetRevision,
+	}
+}
+
+// envsubst expands $VAR and ${VAR} like Argo CD: unknown variables are empty and $$ is a $.
+func envsubst(s string, env map[string]string) string {
+	return os.Expand(s, func(k string) string {
+		if k == "$" {
+			return "$"
+		}
+		return env[k]
+	})
+}
+
+var heads sync.Map
+
+// headRevision is the commit checked out at repoRoot, or "" outside a git repository.
+func headRevision(repoRoot string) string {
+	if v, ok := heads.Load(repoRoot); ok {
+		return v.(string)
+	}
+	out, err := git.Command(repoRoot, "rev-parse", "HEAD").Output()
+	head := ""
+	if err == nil {
+		head = strings.TrimSpace(string(out))
+	}
+	heads.Store(repoRoot, head)
+	return head
 }
 
 // RepoRoot returns the top level of the git checkout holding path, or the

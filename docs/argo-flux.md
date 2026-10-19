@@ -18,6 +18,7 @@
 | `helm.valueFiles` without `$ref/` | relative to the `path` of a local chart; with a remote chart it is an error, only `$ref/` paths are supported |
 | `helm.values`, `helm.valuesObject` | used as values |
 | `helm.parameters` | applied on top, like `--set` |
+| Build environment (`$ARGOCD_APP_NAME`, `$ARGOCD_APP_NAMESPACE`, `$ARGOCD_APP_PROJECT_NAME`, `$ARGOCD_APP_SOURCE_PATH`, `$ARGOCD_APP_SOURCE_REPO_URL`, `$ARGOCD_APP_SOURCE_TARGET_REVISION`, `$ARGOCD_APP_REVISION` and its `_SHORT`/`_SHORT_8` forms) | substituted where Argo CD does it: in `helm.parameters` values and in `valueFiles` paths, not inside `values` or `valuesObject`. An unknown variable is empty and `$$` is a literal `$`. The revision is the chart version for a chart source, and the checkout's current commit for a git path |
 | `helm.releaseName` | the release name |
 | `helm.namespace` | the release namespace, as Argo CD templates with it; otherwise `destination.namespace` |
 | `helm.kubeVersion` | the Kubernetes version for that app, over `kubeVersion` of `.deadvalues.yaml`; `--kube-version` still wins |
