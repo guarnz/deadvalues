@@ -35,6 +35,7 @@ type Source struct {
 
 type Helm struct {
 	ReleaseName             string                 `json:"releaseName"`
+	Namespace               string                 `json:"namespace"`
 	ValueFiles              []string               `json:"valueFiles"`
 	Values                  string                 `json:"values"`
 	ValuesObject            map[string]interface{} `json:"valuesObject"`
@@ -166,6 +167,9 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 		if h := s.Helm; h != nil {
 			if h.ReleaseName != "" {
 				t.Release = h.ReleaseName
+			}
+			if h.Namespace != "" {
+				t.Namespace = h.Namespace
 			}
 			for _, vf := range h.ValueFiles {
 				p, err := resolveValueFile(vf, repoRoot, s, local, refs)

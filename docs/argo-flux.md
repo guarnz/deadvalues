@@ -19,6 +19,7 @@
 | `helm.values`, `helm.valuesObject` | used as values |
 | `helm.parameters` | applied on top, like `--set` |
 | `helm.releaseName` | the release name |
+| `helm.namespace` | the release namespace, as Argo CD templates with it; otherwise `destination.namespace` |
 | `helm.ignoreMissingValueFiles` | a missing value file is skipped instead of failing |
 | Several `valueFiles` | merged in Argo's order; each key is reported with its source file |
 | A source with `path` and no `chart` | the local chart in the repository |
