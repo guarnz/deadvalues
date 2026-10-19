@@ -19,6 +19,7 @@ import (
 var kustomizationNames = []string{"kustomization.yaml", "kustomization.yml", "Kustomization"}
 
 type kustomization struct {
+	Kind       string   `json:"kind"`
 	Namespace  string   `json:"namespace"`
 	Resources  []string `json:"resources"`
 	Components []string `json:"components"`
@@ -68,16 +69,26 @@ func isRemote(r string) bool {
 	return strings.Contains(r, "://") || strings.HasPrefix(r, "github.com/") || strings.Contains(r, "?ref=")
 }
 
-// Roots returns the kustomize directories under dir that no other
-// kustomization under dir includes: the overlays to build. When dir itself
-// is a kustomize directory it is the only root.
+// Roots returns the kustomize directories under dir that no other kustomization
+// includes: the overlays to build. Components are left out; dir itself is always a root.
 func Roots(dir string) ([]string, error) {
+	roots, _, err := walkKustomizations(dir)
+	return roots, err
+}
+
+// Components returns the kustomize Components under dir, built only by what includes them.
+func Components(dir string) ([]string, error) {
+	_, components, err := walkKustomizations(dir)
+	return components, err
+}
+
+func walkKustomizations(dir string) (roots, components []string, err error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if IsKustomizeDir(abs) {
-		return []string{abs}, nil
+		return []string{abs}, nil, nil
 	}
 	var found []string
 	referenced := map[string]bool{}
@@ -95,22 +106,25 @@ func Roots(dir string) ([]string, error) {
 		if !ok {
 			return nil
 		}
-		found = append(found, p)
 		for _, r := range append(append([]string{}, k.Resources...), k.Components...) {
 			if isRemote(r) {
 				continue
 			}
 			referenced[filepath.Clean(filepath.Join(p, r))] = true
 		}
+		if k.Kind == "Component" {
+			components = append(components, p)
+			return nil
+		}
+		found = append(found, p)
 		return nil
 	})
-	var roots []string
 	for _, p := range found {
 		if !referenced[filepath.Clean(p)] {
 			roots = append(roots, p)
 		}
 	}
-	return roots, err
+	return roots, components, err
 }
 
 // Tree returns the local files that make up the build of dir, in kustomize
