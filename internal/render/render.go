@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"helm.sh/helm/v4/pkg/chart/common"
 	commonutil "helm.sh/helm/v4/pkg/chart/common/util"
@@ -45,7 +46,7 @@ func New(c *chart.Chart, o Options) (*Renderer, error) {
 		caps.KubeVersion = *kv
 	}
 	if len(o.APIVersions) > 0 {
-		caps.APIVersions = append(append(common.VersionSet{}, caps.APIVersions...), o.APIVersions...)
+		caps.APIVersions = append(append(common.VersionSet{}, caps.APIVersions...), withGroupVersions(o.APIVersions)...)
 	}
 	if o.Release == "" {
 		o.Release = "release"
@@ -164,8 +165,22 @@ func withPlaceholders(c *chart.Chart, paths [][]string) (*chart.Chart, error) {
 // also include apis, as if the cluster served them.
 func (r *Renderer) WithAPIVersions(apis []string) *Renderer {
 	caps := r.caps.Copy()
-	caps.APIVersions = append(append(common.VersionSet{}, r.caps.APIVersions...), apis...)
+	caps.APIVersions = append(append(common.VersionSet{}, r.caps.APIVersions...), withGroupVersions(apis)...)
 	return &Renderer{chart: r.chart, opts: r.opts, caps: caps}
+}
+
+// withGroupVersions adds the group/version of each group/version/Kind entry,
+// as a cluster's discovery serves both forms.
+func withGroupVersions(apis []string) []string {
+	out := append([]string{}, apis...)
+	for _, a := range apis {
+		i := strings.LastIndex(a, "/")
+		if i <= 0 || i == len(a)-1 || !unicode.IsUpper(rune(a[i+1])) {
+			continue
+		}
+		out = append(out, a[:i])
+	}
+	return out
 }
 
 var apiVersionsHas = regexp.MustCompile(`APIVersions\.Has\s+"([^"]+)"|\bhas\s+"([^"]+)"\s+\$?\.Capabilities\.APIVersions\b`)
