@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/guarnz/deadvalues/internal/git"
 	"github.com/guarnz/deadvalues/internal/source"
 )
 
@@ -225,7 +225,7 @@ func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string
 // directory of path when it is not inside a git repository.
 func RepoRoot(path string) string {
 	dir := filepath.Dir(path)
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	out, err := git.Command(dir, "rev-parse", "--show-toplevel").Output()
 	if err != nil {
 		abs, _ := filepath.Abs(dir)
 		return abs
@@ -237,11 +237,11 @@ func RepoRoot(path string) string {
 // (their merge base, or rev itself in a shallow clone), as absolute paths.
 func ChangedFiles(repoRoot, rev string) (map[string]bool, error) {
 	from := rev
-	if out, err := exec.Command("git", "-C", repoRoot, "merge-base", rev, "HEAD").Output(); err == nil {
+	if out, err := git.Command(repoRoot, "merge-base", rev, "HEAD").Output(); err == nil {
 		from = strings.TrimSpace(string(out))
 	}
 	var stderr bytes.Buffer
-	cmd := exec.Command("git", "-C", repoRoot, "diff", "--name-only", from)
+	cmd := git.Command(repoRoot, "diff", "--name-only", from)
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {

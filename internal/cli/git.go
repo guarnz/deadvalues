@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/guarnz/deadvalues/internal/git"
 )
 
 // checkoutTree extracts the repository at rev into a temporary directory
@@ -22,7 +23,7 @@ func checkoutTree(root, rev string) (string, func(), error) {
 	cleanup := func() { _ = os.RemoveAll(dir) }
 
 	var stderr bytes.Buffer
-	cmd := exec.Command("git", "-C", root, "archive", "--format=tar", rev)
+	cmd := git.Command(root, "archive", "--format=tar", rev)
 	cmd.Stderr = &stderr
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -62,7 +63,7 @@ func resolveRef(root, ref string) (string, error) {
 }
 
 func refExists(root, ref string) bool {
-	return exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet", ref+"^{commit}").Run() == nil
+	return git.Command(root, "rev-parse", "--verify", "--quiet", ref+"^{commit}").Run() == nil
 }
 
 // forkPoint returns the commit head branched from: its merge base with the
@@ -70,15 +71,15 @@ func refExists(root, ref string) bool {
 // main or master), which is what a pull request compares against.
 func forkPoint(root, head string) (string, error) {
 	var candidates []string
-	if out, err := exec.Command("git", "-C", root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").Output(); err == nil {
+	if out, err := git.Command(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").Output(); err == nil {
 		candidates = append(candidates, strings.TrimSpace(string(out)))
 	}
 	candidates = append(candidates, "origin/main", "origin/master", "main", "master")
 	for _, c := range candidates {
-		if exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet", c).Run() != nil {
+		if git.Command(root, "rev-parse", "--verify", "--quiet", c).Run() != nil {
 			continue
 		}
-		out, err := exec.Command("git", "-C", root, "merge-base", head, c).Output()
+		out, err := git.Command(root, "merge-base", head, c).Output()
 		if err == nil {
 			return strings.TrimSpace(string(out)), nil
 		}

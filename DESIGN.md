@@ -58,7 +58,7 @@ The pipeline has one shape for every command:
 3. **Probe** (`internal/probe`): render the chart with the values, remove keys, render again, compare (section 3).
 4. **Report** (`internal/report`), or **prune** (`internal/prune`) using the origins of step 1, or **diff** (`internal/diff`) by probing two chart versions.
 
-`internal/cli` holds the commands and everything that is not analysis: finding the targets in a directory or a repository, extracting git revisions, applying `.deadvalues.yaml`, writing reports.
+`internal/cli` holds the commands and everything that is not analysis: finding the targets in a directory or a repository, extracting git revisions, applying `.deadvalues.yaml`, writing reports. Every git command goes through `internal/git`, which runs the `git` found in `PATH`, the one the user already runs.
 
 ---
 
