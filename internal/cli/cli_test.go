@@ -602,6 +602,42 @@ spec:
 	}
 }
 
+func TestArgoHelmAPIVersions(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	app := func(apis string) string {
+		return `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+spec:
+  source:
+    repoURL: https://example.com/repo
+    path: charts/cases
+    helm:` + apis + `
+      values: |
+        name: web
+        monitoring:
+          serviceMonitor: true
+`
+	}
+	for _, tt := range []struct{ apis, want string }{
+		{"", "CONDITIONAL"},
+		{"\n      apiVersions:\n        - monitoring.coreos.com/v1/ServiceMonitor", "ALIVE"},
+	} {
+		file := filepath.Join(root, "apps", "web.yaml")
+		writeFile(t, file, app(tt.apis))
+		out, code := runCLI(t, "check", "--app", file, "--repo-root", root, "-o", "json", "--fail-on", "none")
+		if code != 0 {
+			t.Fatalf("exit %d\n%s", code, out)
+		}
+		_, keys := statuses(t, out)
+		if got := keys["monitoring.serviceMonitor"].Status; !strings.HasPrefix(got, tt.want) {
+			t.Errorf("helm block %q: monitoring.serviceMonitor is %q, want %s", tt.apis, got, tt.want)
+		}
+	}
+}
+
 // gitIn returns a function that runs git in root and fails the test on error.
 func gitIn(t *testing.T, root string) func(args ...string) {
 	return func(args ...string) {

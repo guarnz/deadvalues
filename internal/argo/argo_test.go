@@ -1,6 +1,36 @@
 package argo
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
+
+func TestHelmCapabilitiesReachTheTarget(t *testing.T) {
+	apps, err := Parse([]byte(`apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+spec:
+  source:
+    repoURL: https://charts.example.com
+    chart: web
+    targetRevision: 1.0.0
+    helm:
+      kubeVersion: "1.33"
+      apiVersions:
+        - monitoring.coreos.com/v1/ServiceMonitor
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets, err := apps[0].Targets(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := targets[0]; got.KubeVersion != "1.33" || !reflect.DeepEqual(got.APIVersions, []string{"monitoring.coreos.com/v1/ServiceMonitor"}) {
+		t.Errorf("target kubeVersion %q, apiVersions %v", got.KubeVersion, got.APIVersions)
+	}
+}
 
 func TestHelmNamespaceOverridesDestination(t *testing.T) {
 	app := func(helm string) string {

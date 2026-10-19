@@ -63,6 +63,9 @@ type job struct {
 	only map[string]bool
 	// skip is why the target is reported without being analyzed.
 	skip string
+	// kubeVersion and apiVersions are the app's own, as an Argo CD source can set them.
+	kubeVersion string
+	apiVersions []string
 }
 
 func (g *globals) jobs(t *targetFlags) ([]job, error) {
@@ -149,6 +152,8 @@ func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([
 			release:     tg.Release,
 			namespace:   tg.Namespace,
 			vals:        set,
+			kubeVersion: tg.KubeVersion,
+			apiVersions: tg.APIVersions,
 		}
 		if t != nil && t.release != "" {
 			j.release = t.release
@@ -193,11 +198,18 @@ func (g *globals) renderer(ctx context.Context, j job, ref source.Ref) (*render.
 	if err != nil {
 		return nil, err
 	}
+	kube, apis := g.kubeVersion, g.apiVersions
+	if j.kubeVersion != "" && !g.kubeVersionFlag {
+		kube = j.kubeVersion
+	}
+	if len(j.apiVersions) > 0 {
+		apis = append(append([]string{}, g.flagAPIVersions...), j.apiVersions...)
+	}
 	return render.New(c, render.Options{
 		Release:      j.release,
 		Namespace:    j.namespace,
-		KubeVersion:  g.kubeVersion,
-		APIVersions:  g.apiVersions,
+		KubeVersion:  kube,
+		APIVersions:  apis,
 		Placeholders: j.placeholders,
 	})
 }

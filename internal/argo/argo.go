@@ -36,6 +36,8 @@ type Source struct {
 type Helm struct {
 	ReleaseName             string                 `json:"releaseName"`
 	Namespace               string                 `json:"namespace"`
+	KubeVersion             string                 `json:"kubeVersion"`
+	APIVersions             []string               `json:"apiVersions"`
 	ValueFiles              []string               `json:"valueFiles"`
 	Values                  string                 `json:"values"`
 	ValuesObject            map[string]interface{} `json:"valuesObject"`
@@ -76,6 +78,9 @@ type Target struct {
 	Values      string
 	ValuesObj   map[string]interface{}
 	Parameters  []Parameter
+	// KubeVersion and APIVersions replace the cluster's when the source sets them, as in Argo CD.
+	KubeVersion string
+	APIVersions []string
 	// Skip is why a Helm source cannot be analyzed yet; it is reported, not rendered.
 	Skip string
 }
@@ -171,6 +176,7 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 			if h.Namespace != "" {
 				t.Namespace = h.Namespace
 			}
+			t.KubeVersion, t.APIVersions = h.KubeVersion, h.APIVersions
 			for _, vf := range h.ValueFiles {
 				p, err := resolveValueFile(vf, repoRoot, s, local, refs)
 				if err != nil {

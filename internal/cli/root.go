@@ -89,6 +89,10 @@ type globals struct {
 	outputFiles []string
 	outputs     []outputFile
 
+	// kubeVersionFlag and flagAPIVersions keep what the command line set, which wins over an app's own.
+	kubeVersionFlag bool
+	flagAPIVersions []string
+
 	cfg       *config.Config
 	loader    *source.Loader
 	colorOn   bool
@@ -198,9 +202,11 @@ func (g *globals) setup(cmd *cobra.Command) error {
 	if err != nil {
 		return &exitError{code: 2, err: err}
 	}
-	if !cmd.Flags().Changed("kube-version") && g.cfg.KubeVersion != "" {
+	g.kubeVersionFlag = cmd.Flags().Changed("kube-version")
+	if !g.kubeVersionFlag && g.cfg.KubeVersion != "" {
 		g.kubeVersion = g.cfg.KubeVersion
 	}
+	g.flagAPIVersions = append([]string{}, g.apiVersions...)
 	g.apiVersions = append(g.apiVersions, g.cfg.APIVersions...)
 
 	g.loader = source.NewLoader(g.cacheDir, g.noCache)

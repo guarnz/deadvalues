@@ -20,6 +20,8 @@
 | `helm.parameters` | applied on top, like `--set` |
 | `helm.releaseName` | the release name |
 | `helm.namespace` | the release namespace, as Argo CD templates with it; otherwise `destination.namespace` |
+| `helm.kubeVersion` | the Kubernetes version for that app, over `kubeVersion` of `.deadvalues.yaml`; `--kube-version` still wins |
+| `helm.apiVersions` | the APIs for that app, replacing `apiVersions` of `.deadvalues.yaml` as Argo CD replaces the cluster's; `--api-versions` is still added |
 | `helm.ignoreMissingValueFiles` | a missing value file is skipped instead of failing |
 | Several `valueFiles` | merged in Argo's order; each key is reported with its source file |
 | A source with `path` and no `chart` | the local chart in the repository |
