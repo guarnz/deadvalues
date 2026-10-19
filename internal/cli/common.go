@@ -61,6 +61,8 @@ type job struct {
 	// only restricts findings to keys set in these values files (normalized
 	// paths), when the user asked about specific files with -f alone.
 	only map[string]bool
+	// skip is why the target is reported without being analyzed.
+	skip string
 }
 
 func (g *globals) jobs(t *targetFlags) ([]job, error) {
@@ -107,6 +109,11 @@ func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([
 	}
 	var out []job
 	for _, tg := range targets {
+		if tg.Skip != "" {
+			out = append(out, job{name: tg.Name, app: app.Name, appFile: app.File, ident: "argo:" + tg.Name,
+				sourceIndex: tg.SourceIndex, vals: values.New(), skip: tg.Skip})
+			continue
+		}
 		set := values.New()
 		for _, f := range tg.ValueFiles {
 			if err := set.AddFile(f); err != nil {
@@ -266,6 +273,11 @@ func (g *globals) ignorer(app string) func([]string) bool {
 }
 
 func (g *globals) check(ctx context.Context, j job) *report.Check {
+	if j.skip != "" {
+		c := report.NotAnalyzed(j.name, j.skip)
+		c.AppFile = j.appFile
+		return c
+	}
 	a, err := g.analyze(ctx, j, j.ref)
 	if err != nil {
 		c := report.Failed(j.name, err)

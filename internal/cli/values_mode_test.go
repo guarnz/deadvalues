@@ -16,7 +16,8 @@ type anyCheck struct {
 		Status string `json:"status"`
 		UsedBy string `json:"usedBy"`
 	} `json:"keys"`
-	Error string `json:"error"`
+	Skipped string `json:"skipped"`
+	Error   string `json:"error"`
 }
 
 func decodeChecks(t *testing.T, out string) []anyCheck {

@@ -54,6 +54,7 @@ type Check struct {
 	Shared   int            `json:"usedByOtherApps"`
 	Notes    []string       `json:"notes,omitempty"`
 	Unproven int            `json:"sharedUnverified"`
+	Skipped  string         `json:"skipped,omitempty"`
 	Error    string         `json:"error,omitempty"`
 }
 
@@ -234,6 +235,11 @@ func (c *Check) Restrict(files map[string]bool, norm func(string) string) {
 
 func Failed(app string, err error) *Check {
 	return &Check{App: app, Error: err.Error(), Counts: map[string]int{}}
+}
+
+// NotAnalyzed reports an app that was found but cannot be analyzed yet; it is not an error.
+func NotAnalyzed(app, reason string) *Check {
+	return &Check{App: app, Skipped: reason, Counts: map[string]int{}}
 }
 
 func findingDetail(f probe.Finding) string {
