@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/guarnz/deadvalues/internal/argo"
@@ -171,8 +172,12 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 	if err != nil {
 		return nil, nil, err
 	}
+	components, err := flux.Components(dir)
+	if err != nil {
+		return nil, nil, err
+	}
 	inTree := map[string]bool{}
-	for _, r := range roots {
+	for _, r := range slices.Concat(roots, components) {
 		for _, f := range flux.Tree(r) {
 			inTree[normPath(f)] = true
 		}

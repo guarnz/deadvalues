@@ -473,6 +473,31 @@ func writeFile(t *testing.T, p, body string) {
 	}
 }
 
+func TestScanSkipsKustomizeComponents(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "components", "anubis", "kustomization.yaml"),
+		"apiVersion: kustomize.config.k8s.io/v1alpha1\nkind: Component\nresources:\n  - helmrelease.yaml\n")
+	writeFile(t, filepath.Join(root, "components", "anubis", "helmrelease.yaml"), `apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ${APP}-anubis
+spec:
+  chart:
+    spec:
+      chart: app-template
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s
+`)
+	out, code := runCLI(t, "scan", root, "--repo-root", root, "-o", "json", "--fail-on", "none")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	if apps := decodeChecks(t, out); len(apps) != 0 {
+		t.Errorf("a component is only built through what includes it, got apps %+v", apps)
+	}
+}
+
 func TestEveryApplicationInAFile(t *testing.T) {
 	root := t.TempDir()
 	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))

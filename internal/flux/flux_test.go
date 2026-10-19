@@ -417,6 +417,43 @@ spec:
 	}
 }
 
+func TestRootsLeaveOutComponents(t *testing.T) {
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("apps/web/kustomization.yaml", "resources:\n  - release.yaml\n")
+	write("apps/web/release.yaml", "kind: ConfigMap\n")
+	write("components/sidecar/kustomization.yaml", "apiVersion: kustomize.config.k8s.io/v1alpha1\nkind: Component\nresources:\n  - release.yaml\n")
+	write("components/sidecar/release.yaml", "kind: ConfigMap\n")
+
+	roots, err := Roots(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{filepath.Join(root, "apps", "web")}; !reflect.DeepEqual(roots, want) {
+		t.Errorf("Roots = %v, want only the overlay %v", roots, want)
+	}
+	components, err := Components(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{filepath.Join(root, "components", "sidecar")}; !reflect.DeepEqual(components, want) {
+		t.Errorf("Components = %v, want %v", components, want)
+	}
+	direct := filepath.Join(root, "components", "sidecar")
+	if roots, _ := Roots(direct); !reflect.DeepEqual(roots, []string{direct}) {
+		t.Errorf("a component given as the directory to scan is still built: Roots = %v", roots)
+	}
+}
+
 func TestRootsAndOverlayBuild(t *testing.T) {
 	root := fixture(t)
 	roots, err := Roots(filepath.Join(root, "apps"))

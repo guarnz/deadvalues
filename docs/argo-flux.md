@@ -68,7 +68,7 @@ production:podinfo/podinfo  podinfo 6.15.0      0      0          0      7
 staging:podinfo/podinfo     podinfo 6.15.0      0      0          0      7
 ```
 
-`scan` finds the overlays to build on its own (kustomize directories no other kustomization includes). The Flux `Kustomization` objects in `clusters/<name>` are not followed: point `scan` at the app directories (`apps/production`, `infrastructure/controllers`).
+`scan` finds the overlays to build on its own (kustomize directories no other kustomization includes). A kustomize `Component` (`kind: Component`) is never built on its own, since it only makes sense inside what includes it: it is read through the overlay or the Flux `Kustomization` that lists it, with that app's namespace and variables. Point `scan` at the component's own directory to build it anyway. The Flux `Kustomization` objects in `clusters/<name>` are not followed: point `scan` at the app directories (`apps/production`, `infrastructure/controllers`).
 
 ## Flux variables
 
