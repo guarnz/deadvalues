@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -468,6 +470,49 @@ func writeFile(t *testing.T, p, body string) {
 	}
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestEveryApplicationInAFile(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	app := func(name, path string) string {
+		return `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ` + name + `
+spec:
+  destination:
+    namespace: apps
+  source:
+    repoURL: https://example.com/repo
+    path: ` + path + `
+    helm:
+      values: |
+        name: ` + name + `
+`
+	}
+	file := filepath.Join(root, "apps", "all.yaml")
+	writeFile(t, file, "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: apps\n---\n"+
+		app("one", "charts/cases")+"---\n"+app("manifests", "manifests/plain")+"---\n"+app("two", "charts/cases"))
+
+	names := func(out string) []string {
+		t.Helper()
+		var got []string
+		for _, c := range decodeChecks(t, out) {
+			got = append(got, c.App)
+		}
+		sort.Strings(got)
+		return got
+	}
+	want := []string{"one", "two"}
+	out, code := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
+	if code != 0 || !slices.Equal(names(out), want) {
+		t.Errorf("scan: exit %d, apps %v, want %v\n%s", code, names(out), want, out)
+	}
+	out, code = runCLI(t, "check", "--app", file, "--repo-root", root, "-o", "json", "--fail-on", "none")
+	if code != 0 || !slices.Equal(names(out), want) {
+		t.Errorf("check --app: exit %d, apps %v, want %v\n%s", code, names(out), want, out)
 	}
 }
 

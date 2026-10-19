@@ -78,23 +78,28 @@ type Target struct {
 
 var docSeparator = regexp.MustCompile(`(?m)^---\s*$`)
 
-func Load(path string) (*Application, error) {
+// Load reads every Argo CD Application in the file at path.
+func Load(path string) ([]*Application, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	app, err := Parse(data)
+	apps, err := Parse(data)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	app.File = path
-	return app, nil
+	for _, app := range apps {
+		app.File = path
+	}
+	return apps, nil
 }
 
 // ErrNotApplication is returned for YAML files that hold no Application.
 var ErrNotApplication = fmt.Errorf("no Argo CD Application found")
 
-func Parse(data []byte) (*Application, error) {
+// Parse returns every Application in the YAML documents, in file order.
+func Parse(data []byte) ([]*Application, error) {
+	var apps []*Application
 	for _, doc := range docSeparator.Split(string(data), -1) {
 		var m manifest
 		if err := yaml.Unmarshal([]byte(doc), &m); err != nil {
@@ -108,9 +113,12 @@ func Parse(data []byte) (*Application, error) {
 			app.Sources = append(app.Sources, *m.Spec.Source)
 		}
 		app.Sources = append(app.Sources, m.Spec.Sources...)
-		return app, nil
+		apps = append(apps, app)
 	}
-	return nil, ErrNotApplication
+	if len(apps) == 0 {
+		return nil, ErrNotApplication
+	}
+	return apps, nil
 }
 
 // Targets resolves every Helm source of the Application. `$ref/...` value

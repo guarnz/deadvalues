@@ -32,11 +32,28 @@ func (g *globals) manifestJobs(file string, t *targetFlags) ([]job, error) {
 	}
 	switch {
 	case hasApp:
-		app, err := argo.Load(file)
+		apps, err := argo.Load(file)
 		if err != nil {
 			return nil, &exitError{code: 2, err: err}
 		}
-		return g.appJobs(app, root, t)
+		if len(apps) == 1 {
+			return g.appJobs(apps[0], root, t)
+		}
+		var jobs []job
+		for _, app := range apps {
+			js, err := g.appJobs(app, root, t)
+			if noHelmSource(err) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			jobs = append(jobs, js...)
+		}
+		if len(jobs) == 0 {
+			return nil, &exitError{code: 2, err: fmt.Errorf("%s: no Application with a Helm source", file)}
+		}
+		return jobs, nil
 	case hasRelease:
 		jobs, failed := g.fluxFileJobs([]string{file}, root, t, nil)
 		if len(failed) > 0 {
@@ -165,24 +182,25 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 	var failed []*report.Check
 	var releaseFiles []string
 	for _, f := range files {
-		app, err := argo.Load(f)
+		apps, err := argo.Load(f)
 		switch {
 		case err == nil:
-			if !filter.keep(f, app.Name) {
-				continue
-			}
-			js, err := g.appJobs(app, root, nil)
-			if err != nil {
-				var ee *exitError
-				if errors.As(err, &ee) && ee.err != nil && strings.HasSuffix(ee.err.Error(), "no Helm source found") {
+			for _, app := range apps {
+				if !filter.keep(f, app.Name) {
 					continue
 				}
-				c := report.Failed(app.Name, err)
-				c.AppFile = f
-				failed = append(failed, c)
-				continue
+				js, err := g.appJobs(app, root, nil)
+				if noHelmSource(err) {
+					continue
+				}
+				if err != nil {
+					c := report.Failed(app.Name, err)
+					c.AppFile = f
+					failed = append(failed, c)
+					continue
+				}
+				jobs = append(jobs, js...)
 			}
-			jobs = append(jobs, js...)
 		case !errors.Is(err, argo.ErrNotApplication):
 			failed = append(failed, report.Failed(f, err))
 		case !inTree[normPath(f)] && g.hasRelease(f):
@@ -210,6 +228,12 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 		failed = append(failed, fails...)
 	}
 	return jobs, failed, nil
+}
+
+// noHelmSource reports whether appJobs failed only because the Application has no Helm source.
+func noHelmSource(err error) bool {
+	var ee *exitError
+	return errors.As(err, &ee) && ee.err != nil && strings.HasSuffix(ee.err.Error(), "no Helm source found")
 }
 
 func (g *globals) hasRelease(file string) bool {
