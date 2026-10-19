@@ -10,7 +10,7 @@ deadvalues does not parse templates. It **renders the chart, removes each key yo
    - equal to the chart default → `REDUNDANT`
    - a different value changes the output → `REDUNDANT (implicit)`: your value matches a fallback in the template (`default "X" .Values.y`)
    - turning on a disabled `enabled` flag, or all the disabled ones above the key together, makes the key matter → `CONDITIONAL`
-   - declaring an API the chart checks with `.Capabilities.APIVersions.Has` (or `has ... .Capabilities.APIVersions`) makes the key matter → `CONDITIONAL` on that API
+   - declaring an API the chart checks with `.Capabilities.APIVersions.Has` (or `has ... .Capabilities.APIVersions`) makes the key matter → `CONDITIONAL` on that API. When the check takes the API from a variable (`Has $apiVersion`, filled by a helper), the APIs quoted in the chart's templates and helpers are tried instead
    - otherwise → `DEAD`
 
 Renders run in parallel, in memory, client-side (like `helm template`). Nothing touches a cluster.

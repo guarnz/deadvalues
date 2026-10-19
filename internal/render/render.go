@@ -183,30 +183,52 @@ func withGroupVersions(apis []string) []string {
 	return out
 }
 
-var apiVersionsHas = regexp.MustCompile(`APIVersions\.Has\s+"([^"]+)"|\bhas\s+"([^"]+)"\s+\$?\.Capabilities\.APIVersions\b`)
+var (
+	apiVersionsHas = regexp.MustCompile(`APIVersions\.Has\s+"([^"]+)"|\bhas\s+"([^"]+)"\s+\$?\.Capabilities\.APIVersions\b`)
+	// apiVersionsHasExpr matches checks whose API is not a literal, like Has $apiVersion.
+	apiVersionsHasExpr = regexp.MustCompile(`APIVersions\.Has\s+[^"\s]|\bhas\s+[^"\s][^\n]*?\$?\.Capabilities\.APIVersions\b`)
+	// apiLiteral matches a quoted API of a dotted group, with or without a kind.
+	apiLiteral = regexp.MustCompile(`"([a-z0-9-]+(?:\.[a-z0-9-]+)+/v[0-9]+(?:(?:alpha|beta)[0-9]+)?(?:/[A-Z][A-Za-z0-9]*)?)"`)
+)
 
-// MissingAPIVersions lists the API versions the chart checks for that the
-// capabilities lack, leaving out versions removed before the rendered one.
+// MissingAPIVersions lists the APIs the chart checks for that the capabilities lack and still exist;
+// when a check takes its API from a variable, every API quoted in the templates is a candidate.
 func (r *Renderer) MissingAPIVersions() []string {
-	seen := map[string]bool{}
-	var out []string
+	var files [][]byte
 	var walk func(c *chart.Chart)
 	walk = func(c *chart.Chart) {
 		for _, t := range c.Templates {
-			for _, m := range apiVersionsHas.FindAllStringSubmatch(string(t.Data), -1) {
-				v := m[1] + m[2]
-				if seen[v] || r.caps.APIVersions.Has(v) || removed(v, r.caps.KubeVersion) {
-					continue
-				}
-				seen[v] = true
-				out = append(out, v)
-			}
+			files = append(files, t.Data)
 		}
 		for _, d := range c.Dependencies() {
 			walk(d)
 		}
 	}
 	walk(r.chart)
+
+	seen := map[string]bool{}
+	var out []string
+	add := func(v string) {
+		if seen[v] || r.caps.APIVersions.Has(v) || removed(v, r.caps.KubeVersion) {
+			return
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	indirect := false
+	for _, data := range files {
+		for _, m := range apiVersionsHas.FindAllSubmatch(data, -1) {
+			add(string(m[1]) + string(m[2]))
+		}
+		indirect = indirect || apiVersionsHasExpr.Match(data)
+	}
+	if indirect {
+		for _, data := range files {
+			for _, m := range apiLiteral.FindAllSubmatch(data, -1) {
+				add(string(m[1]))
+			}
+		}
+	}
 	sort.Strings(out)
 	return out
 }

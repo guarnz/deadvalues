@@ -53,6 +53,43 @@ func TestKindAPIServesItsGroupVersion(t *testing.T) {
 	}
 }
 
+func TestMissingAPIVersionsThroughAVariable(t *testing.T) {
+	helper := &common.File{Name: "templates/_helpers.tpl", Data: []byte(`{{- define "demo.monitoring" -}}{{- print "monitoring.coreos.com/v1" -}}{{- end -}}`)}
+	viaVariable := &chart.Chart{
+		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
+		Templates: []*common.File{helper, {Name: "templates/monitor.yaml", Data: []byte(
+			`{{- $api := include "demo.monitoring" . }}{{- if .Capabilities.APIVersions.Has $api }}kind: ServiceMonitor{{ end }}`)}},
+	}
+	r, err := New(viaVariable, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing := r.MissingAPIVersions()
+	if want := []string{"monitoring.coreos.com/v1"}; !reflect.DeepEqual(missing, want) {
+		t.Fatalf("MissingAPIVersions() = %v, want %v", missing, want)
+	}
+	out, err := r.WithAPIVersions(missing).Render(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out["demo/templates/monitor.yaml"], "ServiceMonitor") {
+		t.Errorf("serving the candidate API should render the ServiceMonitor, got %q", out)
+	}
+
+	literalOnly := &chart.Chart{
+		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
+		Templates: []*common.File{helper, {Name: "templates/monitor.yaml", Data: []byte(
+			`{{- if .Capabilities.APIVersions.Has "cert-manager.io/v1" }}kind: Certificate{{ end }}`)}},
+	}
+	r, err = New(literalOnly, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := r.MissingAPIVersions(), []string{"cert-manager.io/v1"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("without a check through a variable, quoted APIs are not candidates: got %v, want %v", got, want)
+	}
+}
+
 func TestMissingAPIVersionsReadsBothForms(t *testing.T) {
 	c := &chart.Chart{
 		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
