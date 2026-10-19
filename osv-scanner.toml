@@ -1,0 +1,4 @@
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+ignoreUntil = 2027-04-18
+reason = "golang.org/x/crypto/openpgp is not imported; Helm uses github.com/ProtonMail/go-crypto. govulncheck reports nothing reachable."

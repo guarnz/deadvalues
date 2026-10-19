@@ -27,7 +27,7 @@ Reports show the **values** of the keys they list, so a secret written in plain 
 - **GitHub Action** — downloads the release binary and verifies it against `checksums.txt`; the `args` input is split, never evaluated by the shell
 - **GitHub Actions pinned by digest** — Renovate pins actions to a commit SHA (`pinDigests`) so a moved tag cannot alter a workflow
 - **Renovate Bot** — keeps Go modules, actions and the base image up to date
-- **OpenSSF Scorecard** — runs on the repository and publishes its score
+- **OpenSSF Scorecard** — runs on the repository and publishes its score; a vulnerability in a module the binary does not use is listed in `osv-scanner.toml` with the reason and an expiry date
 - **govulncheck** — fails the build when the code calls a known vulnerable function, the Go standard library included; also runs weekly
 - **CodeQL** — static analysis of the Go code on every push and pull request
 - **Fuzzing** — the values parser is fuzz-tested, so malformed YAML cannot crash it
