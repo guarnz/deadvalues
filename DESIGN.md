@@ -319,4 +319,5 @@ Not supported yet:
 | Flux `chart.spec.valuesFiles` (values files inside the chart package) | a note says those keys are not taken into account |
 | Argo CD `ApplicationSet` | not read |
 | Flux charts from another git repository | an error |
+| Argo CD charts and `$ref/` value files from another git repository | listed as not analyzed, with the reason |
 | The GitHub Actions on Windows runners | the install script supports Linux and macOS and fails with a clear message |

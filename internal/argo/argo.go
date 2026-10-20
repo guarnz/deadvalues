@@ -137,12 +137,13 @@ func Parse(data []byte) ([]*Application, error) {
 // files and local chart paths are resolved against repoRoot, the root of the
 // checkout that holds the Application.
 func (a *Application) Targets(repoRoot string) ([]Target, error) {
-	refs := map[string]bool{}
+	refs := map[string]string{}
 	for _, s := range a.Sources {
 		if s.Ref != "" {
-			refs[s.Ref] = true
+			refs[s.Ref] = s.RepoURL
 		}
 	}
+	origin := gitLine(repoRoot, "remote", "get-url", "origin")
 
 	var out []Target
 	for i, s := range a.Sources {
@@ -182,6 +183,10 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 			}
 			t.KubeVersion, t.APIVersions = h.KubeVersion, h.APIVersions
 			for _, vf := range h.ValueFiles {
+				if repo := otherRepo(vf, refs, origin); repo != "" {
+					t.Skip = fmt.Sprintf("value file %s comes from %s, another git repository; value files from other git repositories are not supported yet", vf, repo)
+					break
+				}
 				p, err := resolveValueFile(vf, repoRoot, s, local, refs, env)
 				if err != nil {
 					return nil, fmt.Errorf("%s: %w", a.Name, err)
@@ -214,10 +219,37 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 	return out, nil
 }
 
-func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string]bool, env map[string]string) (string, error) {
+// otherRepo is the repoURL of the $ref source of vf when it is not the checkout's origin;
+// without an origin every ref is taken as this repository.
+func otherRepo(vf string, refs map[string]string, origin string) string {
+	ref, _, _ := strings.Cut(strings.TrimPrefix(vf, "$"), "/")
+	repo, ok := refs[ref]
+	if !strings.HasPrefix(vf, "$") || !ok || origin == "" || normalizeRepo(repo) == normalizeRepo(origin) {
+		return ""
+	}
+	return repo
+}
+
+// normalizeRepo reduces a git URL to host/path, so https, ssh and scp forms of one repository match.
+func normalizeRepo(u string) string {
+	u = strings.ToLower(strings.TrimSpace(u))
+	if _, rest, ok := strings.Cut(u, "://"); ok {
+		u = rest
+	}
+	if i := strings.Index(u, "@"); i >= 0 && !strings.Contains(u[:i], "/") {
+		u = u[i+1:]
+	}
+	host, p, _ := strings.Cut(strings.Replace(u, ":", "/", 1), "/")
+	if first, rest, ok := strings.Cut(p, "/"); ok && first != "" && strings.Trim(first, "0123456789") == "" {
+		p = rest
+	}
+	return host + "/" + strings.TrimSuffix(strings.Trim(p, "/"), ".git")
+}
+
+func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string]string, env map[string]string) (string, error) {
 	if strings.HasPrefix(vf, "$") {
 		ref, rest, _ := strings.Cut(strings.TrimPrefix(vf, "$"), "/")
-		if !refs[ref] {
+		if _, ok := refs[ref]; !ok {
 			return "", fmt.Errorf("value file %s: no source with ref %q", vf, ref)
 		}
 		return filepath.Join(repoRoot, filepath.FromSlash(envsubst(rest, env))), nil
@@ -233,7 +265,7 @@ func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string
 func (a *Application) buildEnv(s Source, repoRoot string) map[string]string {
 	rev := s.TargetRevision
 	if s.Chart == "" {
-		if head := headRevision(repoRoot); head != "" {
+		if head := gitLine(repoRoot, "rev-parse", "HEAD"); head != "" {
 			rev = head
 		}
 	}
@@ -261,20 +293,21 @@ func envsubst(s string, env map[string]string) string {
 	})
 }
 
-var heads sync.Map
+var gitLines sync.Map
 
-// headRevision is the commit checked out at repoRoot, or "" outside a git repository.
-func headRevision(repoRoot string) string {
-	if v, ok := heads.Load(repoRoot); ok {
+// gitLine is the output of git args in repoRoot, trimmed and cached, or "" when git fails.
+func gitLine(repoRoot string, args ...string) string {
+	key := repoRoot + "\x00" + strings.Join(args, "\x00")
+	if v, ok := gitLines.Load(key); ok {
 		return v.(string)
 	}
-	out, err := git.Command(repoRoot, "rev-parse", "HEAD").Output()
-	head := ""
+	out, err := git.Command(repoRoot, args...).Output()
+	line := ""
 	if err == nil {
-		head = strings.TrimSpace(string(out))
+		line = strings.TrimSpace(string(out))
 	}
-	heads.Store(repoRoot, head)
-	return head
+	gitLines.Store(key, line)
+	return line
 }
 
 // RepoRoot returns the top level of the git checkout holding path, or the
