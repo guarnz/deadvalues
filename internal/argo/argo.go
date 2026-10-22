@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 
 	"sigs.k8s.io/yaml"
 
@@ -143,7 +142,7 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 			refs[s.Ref] = s.RepoURL
 		}
 	}
-	origin := gitLine(repoRoot, "remote", "get-url", "origin")
+	origin := git.Origin(repoRoot)
 
 	var out []Target
 	for i, s := range a.Sources {
@@ -224,26 +223,10 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 func otherRepo(vf string, refs map[string]string, origin string) string {
 	ref, _, _ := strings.Cut(strings.TrimPrefix(vf, "$"), "/")
 	repo, ok := refs[ref]
-	if !strings.HasPrefix(vf, "$") || !ok || origin == "" || normalizeRepo(repo) == normalizeRepo(origin) {
+	if !strings.HasPrefix(vf, "$") || !ok || origin == "" || git.SameRepository(repo, origin) {
 		return ""
 	}
 	return repo
-}
-
-// normalizeRepo reduces a git URL to host/path, so https, ssh and scp forms of one repository match.
-func normalizeRepo(u string) string {
-	u = strings.ToLower(strings.TrimSpace(u))
-	if _, rest, ok := strings.Cut(u, "://"); ok {
-		u = rest
-	}
-	if i := strings.Index(u, "@"); i >= 0 && !strings.Contains(u[:i], "/") {
-		u = u[i+1:]
-	}
-	host, p, _ := strings.Cut(strings.Replace(u, ":", "/", 1), "/")
-	if first, rest, ok := strings.Cut(p, "/"); ok && first != "" && strings.Trim(first, "0123456789") == "" {
-		p = rest
-	}
-	return host + "/" + strings.TrimSuffix(strings.Trim(p, "/"), ".git")
 }
 
 func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string]string, env map[string]string) (string, error) {
@@ -265,7 +248,7 @@ func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string
 func (a *Application) buildEnv(s Source, repoRoot string) map[string]string {
 	rev := s.TargetRevision
 	if s.Chart == "" {
-		if head := gitLine(repoRoot, "rev-parse", "HEAD"); head != "" {
+		if head := git.Line(repoRoot, "rev-parse", "HEAD"); head != "" {
 			rev = head
 		}
 	}
@@ -291,23 +274,6 @@ func envsubst(s string, env map[string]string) string {
 		}
 		return env[k]
 	})
-}
-
-var gitLines sync.Map
-
-// gitLine is the output of git args in repoRoot, trimmed and cached, or "" when git fails.
-func gitLine(repoRoot string, args ...string) string {
-	key := repoRoot + "\x00" + strings.Join(args, "\x00")
-	if v, ok := gitLines.Load(key); ok {
-		return v.(string)
-	}
-	out, err := git.Command(repoRoot, args...).Output()
-	line := ""
-	if err == nil {
-		line = strings.TrimSpace(string(out))
-	}
-	gitLines.Store(key, line)
-	return line
 }
 
 // RepoRoot returns the top level of the git checkout holding path, or the

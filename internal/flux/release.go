@@ -3,6 +3,7 @@ package flux
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"go.yaml.in/yaml/v3"
 	"helm.sh/helm/v4/pkg/chart/common"
 
+	"github.com/guarnz/deadvalues/internal/git"
 	"github.com/guarnz/deadvalues/internal/source"
 	"github.com/guarnz/deadvalues/internal/values"
 )
@@ -31,7 +33,14 @@ type Release struct {
 	Notes       []string
 	// Placeholders are the targetPaths of valuesFrom sources not in the repository.
 	Placeholders [][]string
+	// Skip is why the release cannot be analyzed yet; it is reported, not rendered.
+	Skip string
 }
+
+// otherRepository is a chart that lives in a git repository other than this checkout.
+type otherRepository struct{ reason string }
+
+func (e *otherRepository) Error() string { return e.reason }
 
 // Resolver turns HelmRelease objects into releases. Sources, ConfigMaps and
 // Secrets are looked up in Sources. In build mode the HelmRelease comes from
@@ -45,6 +54,8 @@ type Resolver struct {
 	Attribute func(rel *Object, path []string) []values.Origin
 	// Namespace replaces the releases' own, like a Kustomization's targetNamespace.
 	Namespace string
+	// Origin is the origin remote of the checkout; a GitRepository with another URL is not here.
+	Origin string
 }
 
 func (r *Resolver) find(kind, name, namespace, near string) *Object {
@@ -69,6 +80,11 @@ func (r *Resolver) Resolve(rel *Object) (*Release, error) {
 	out := &Release{Object: rel, ID: ns + "/" + rel.Name, Values: values.New()}
 
 	ref, err := r.chart(rel, spec, ns)
+	var other *otherRepository
+	if errors.As(err, &other) {
+		out.Skip = other.reason
+		return out, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", out.ID, err)
 	}
@@ -185,6 +201,11 @@ func (r *Resolver) chartSpec(owner *Object, cs *yaml.Node, ns string) (source.Re
 		}
 		return source.Ref{Repo: url, Chart: chart, Version: version}, nil
 	case "GitRepository":
+		if o := r.find(kind, name, srcNS, owner.File); o != nil {
+			if url := Str(o.Node, "spec", "url"); url != "" && r.Origin != "" && !git.SameRepository(url, r.Origin) {
+				return source.Ref{}, &otherRepository{fmt.Sprintf("Helm chart %s from GitRepository %s/%s is in %s, not in this repository; charts from other git repositories are not supported yet", chart, srcNS, name, url)}
+			}
+		}
 		p := filepath.Join(r.RepoRoot, filepath.FromSlash(strings.TrimPrefix(chart, "./")))
 		if _, err := os.Stat(filepath.Join(p, "Chart.yaml")); err != nil {
 			return source.Ref{}, fmt.Errorf("chart %s from GitRepository %s/%s is not in this repository; charts from other git repositories are not supported", chart, srcNS, name)

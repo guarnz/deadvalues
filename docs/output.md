@@ -7,7 +7,7 @@
 - `markdown` is meant for pull request comments and CI job summaries; the [GitHub Action](github-action.md) builds its report from it.
 - `sarif` feeds GitHub code scanning.
 - `github` prints workflow annotations on the exact line of the values file: `::error` for `BREAKING` and for a target that cannot be analyzed, `::notice` for `REDUNDANT`, `FIXED` and a target listed as not analyzed, `::warning` for the rest.
-- A target deadvalues finds but does not support yet, such as an Argo CD Helm chart from another git repository, is listed as `not analyzed` with the reason and counted in the summary line (`1 not analyzed`). It is not an error and does not change the exit code; in `json` the reason is in `skipped`.
+- A target deadvalues finds but does not support yet, such as a Helm chart from another git repository, is listed as `not analyzed` with the reason and counted in the summary line (`1 not analyzed`). It is not an error and does not change the exit code; in `json` the reason is in `skipped`.
 - `--details` (on `scan`) prints the per-key findings, not only the summary table.
 - In `table` and `markdown`, keys are listed by severity (`DEAD`, `SHARED`, `CONDITIONAL`, `REDUNDANT`, then the effective ones), alphabetically within each status; `diff` lists `BREAKING` first. `json` keeps every key in alphabetical order.
 

@@ -61,20 +61,6 @@ spec:
 	}
 }
 
-func TestNormalizeRepo(t *testing.T) {
-	for _, u := range []string{
-		"https://github.com/acme/apps",
-		"https://github.com/Acme/apps.git",
-		"https://user:token@github.com/acme/apps/",
-		"git@github.com:acme/apps.git",
-		"ssh://git@github.com:22/acme/apps.git",
-	} {
-		if got := normalizeRepo(u); got != "github.com/acme/apps" {
-			t.Errorf("normalizeRepo(%q) = %q", u, got)
-		}
-	}
-}
-
 func TestBuildEnvInParametersAndValueFiles(t *testing.T) {
 	root := t.TempDir()
 	for _, f := range []string{"chart/Chart.yaml", "chart/values/web.yaml", "envs/apps.yaml"} {

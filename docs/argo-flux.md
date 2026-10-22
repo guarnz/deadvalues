@@ -8,7 +8,7 @@
 | Chart | `repoURL` + `chart` + `targetRevision`, or a local `path` | `chart.spec.sourceRef` → `HelmRepository` (HTTP or OCI), `GitRepository` in the same repo; `chartRef` → `OCIRepository` or `HelmChart`. Semver ranges (`>=1.0.0`, `1.x`) are resolved |
 | Values | `valueFiles` (`$values/` refs), `values`, `valuesObject`, `parameters` | `valuesFrom` ConfigMaps/Secrets (manifests or `configMapGenerator`, `targetPath`, `optional`), then `spec.values` |
 | Overlays | — | A directory with a `kustomization.yaml` is built in process (the same kustomize library Flux uses), so patches are applied; the `components` of the Flux `Kustomization` whose `spec.path` is that directory are added, as Flux does; each key still points to the file and line that set it |
-| Not read | `ApplicationSet`; Helm charts and `$ref/` value files from other git repositories (listed as not analyzed, see below) | the values of SOPS-encrypted Secrets and of sources not in the repository (reported as a note, see `valuesFrom` below), charts from other git repositories, `chart.spec.valuesFiles` (reported as a note), `${var}` you do not define (left as text) |
+| Not read | `ApplicationSet`; Helm charts and `$ref/` value files from other git repositories (listed as not analyzed, see below) | the values of SOPS-encrypted Secrets and of sources not in the repository (reported as a note, see `valuesFrom` below), charts from other git repositories (listed as not analyzed, see below), `chart.spec.valuesFiles` (reported as a note), `${var}` you do not define (left as text) |
 
 ## Argo CD Applications
 
@@ -35,7 +35,7 @@
 | Field | How it is read |
 |---|---|
 | `chart.spec.sourceRef` → `HelmRepository` | found by name in the repository; `spec.url` (`type: oci` means OCI) |
-| `chart.spec.sourceRef` → `GitRepository` | if it is this repository, `chart` is a local path; another git repository is an error |
+| `chart.spec.sourceRef` → `GitRepository` | if it is this repository, `chart` is a local path; when its `spec.url` is another repository than the checkout's `origin` (https, ssh and `git@host:owner/repo` URLs of one repository match), the HelmRelease is listed as not analyzed, with the repository; without an `origin` remote, a chart path that is not here is an error |
 | `chartRef` → `OCIRepository` | `spec.url` + `spec.ref.tag` or `spec.ref.semver`; a digest alone is an error, a tag or range is needed |
 | `chartRef` → `HelmChart` | followed to its `HelmRepository` |
 | `version` with a range (`>=1.0.0`, `1.x`) | HTTP: picked from `index.yaml`; OCI: the highest tag that satisfies it |

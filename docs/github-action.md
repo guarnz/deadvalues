@@ -99,7 +99,7 @@ With `fail-on-error: false` the errors are still in the report and the comment, 
 
 On a pull request, only the apps the change touches can fail the check: an app that already had an error before the change, and that the change does not touch, is left out of the report.
 
-An app listed as not analyzed (a target deadvalues finds but does not support yet, such as an Argo CD Helm chart from another git repository) is shown in the comment with its reason and never fails the check, whatever `fail-on-error` says.
+An app listed as not analyzed (a target deadvalues finds but does not support yet, such as a Helm chart from another git repository) is shown in the comment with its reason and never fails the check, whatever `fail-on-error` says.
 
 To report without ever failing, for instance while trying the action on a repository:
 
