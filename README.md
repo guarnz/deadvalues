@@ -61,9 +61,9 @@ example  webapp 0.1.0 → 0.2.0
   1 breaking, 1 pinned, 1 changed, 1 fixed
 ```
 
-## Compared with helm-diff and argocd-diff-preview
+## Compared with helm-diff, argocd-diff-preview and flate
 
-[helm-diff](https://github.com/databus23/helm-diff) and [argocd-diff-preview](https://github.com/dag-andersen/argocd-diff-preview) show what the rendered manifests will look like. deadvalues shows whether your values still do what you think they do.
+[helm-diff](https://github.com/databus23/helm-diff), [argocd-diff-preview](https://github.com/dag-andersen/argocd-diff-preview) and [flate](https://github.com/home-operations/flate) (for Flux) show what the rendered manifests will look like. deadvalues shows whether your values still do what you think they do.
 
 | Situation | Manifest diff | deadvalues |
 |---|---|---|
