@@ -10,6 +10,7 @@ import (
 
 	"github.com/guarnz/deadvalues/internal/argo"
 	"github.com/guarnz/deadvalues/internal/flux"
+	"github.com/guarnz/deadvalues/internal/git"
 	"github.com/guarnz/deadvalues/internal/report"
 	"github.com/guarnz/deadvalues/internal/source"
 	"github.com/guarnz/deadvalues/internal/values"
@@ -294,7 +295,7 @@ func (g *globals) repoIndex(root string) *flux.Index {
 // fluxFileJobs reads HelmReleases as they are written in files, resolving
 // their sources and valuesFrom against the whole repository.
 func (g *globals) fluxFileJobs(files []string, root string, t *targetFlags, filter *appFilter) ([]job, []*report.Check) {
-	res := &flux.Resolver{RepoRoot: root, Sources: g.repoIndex(root)}
+	res := &flux.Resolver{RepoRoot: root, Sources: g.repoIndex(root), Origin: git.Origin(root)}
 	var jobs []job
 	var failed []*report.Check
 	for _, f := range files {
@@ -353,6 +354,7 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 		Fallback:  g.repoIndex(root),
 		Attribute: attr.Origins,
 		Namespace: g.fluxTargetNamespace(root, dir),
+		Origin:    git.Origin(root),
 	}
 
 	var jobs []job
@@ -438,6 +440,7 @@ func releaseJob(rel *flux.Release, label, file, where string, t *targetFlags) (j
 		vals:         rel.Values,
 		notes:        rel.Notes,
 		placeholders: rel.Placeholders,
+		skip:         rel.Skip,
 	}
 	if t != nil {
 		if err := addExtra(j.vals, t); err != nil {

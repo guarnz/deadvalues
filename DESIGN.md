@@ -318,6 +318,5 @@ Not supported yet:
 | Following Flux `Kustomization` objects from `clusters/<name>`, and variables a parent `Kustomization` injects into its children with `patches` | point `scan` at the app directories; the `postBuild` of the `Kustomization` that applies a directory is read, the rest goes in `flux.substitute` |
 | Flux `chart.spec.valuesFiles` (values files inside the chart package) | a note says those keys are not taken into account |
 | Argo CD `ApplicationSet` | not read |
-| Flux charts from another git repository | an error |
-| Argo CD charts and `$ref/` value files from another git repository | listed as not analyzed, with the reason |
+| Charts from another git repository (Argo CD and Flux) and Argo CD `$ref/` value files from another git repository | listed as not analyzed, with the reason |
 | The GitHub Actions on Windows runners | the install script supports Linux and macOS and fails with a clear message |

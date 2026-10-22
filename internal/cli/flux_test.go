@@ -548,3 +548,63 @@ func diffStderr(t *testing.T, args ...string) string {
 	runIO(BuildInfo{Version: "test"}, append([]string{"diff"}, append(args, "--config", cfg, "--cache-dir", t.TempDir())...), &stdout, &stderr)
 	return stderr.String()
 }
+
+func TestFluxChartFromAnotherGitRepoIsNotAnalyzed(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	writeFile(t, filepath.Join(root, "apps", "sources.yaml"), `apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: external
+  namespace: flux-system
+spec:
+  url: https://github.com/acme/charts.git
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  url: ssh://git@github.com/acme/home-ops
+`)
+	release := func(name, chart, source string) {
+		writeFile(t, filepath.Join(root, "apps", name+".yaml"), `apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: `+name+`
+  namespace: apps
+spec:
+  chart:
+    spec:
+      chart: `+chart+`
+      sourceRef:
+        kind: GitRepository
+        name: `+source+`
+        namespace: flux-system
+  values:
+    name: web
+`)
+	}
+	release("external", "./charts/web", "external")
+	release("local", "./charts/cases", "flux-system")
+	release("missing", "./charts/nope", "flux-system")
+	git := gitIn(t, root)
+	git("init", "-q")
+	git("remote", "add", "origin", "https://github.com/acme/home-ops.git")
+
+	out, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
+	got := map[string]anyCheck{}
+	for _, c := range decodeChecks(t, out) {
+		got[c.App] = c
+	}
+	if c := got["apps/external"]; c.Error != "" || !strings.Contains(c.Skipped, "github.com/acme/charts") {
+		t.Errorf("external: want not analyzed with the repository, got skipped %q, error %q", c.Skipped, c.Error)
+	}
+	if c := got["apps/local"]; c.Error != "" || c.Skipped != "" {
+		t.Errorf("local: the GitRepository is this checkout, want it analyzed, got skipped %q, error %q", c.Skipped, c.Error)
+	}
+	if c := got["apps/missing"]; !strings.Contains(c.Error, "not in this repository") {
+		t.Errorf("missing: a wrong path in this repository is still an error, got skipped %q, error %q", c.Skipped, c.Error)
+	}
+}
