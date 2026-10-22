@@ -183,6 +183,88 @@ func TestScanChangedSinceUsesMergeBase(t *testing.T) {
 	}
 }
 
+func TestChangesReportOnlyTheFailuresTheyTouch(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	writeFile(t, filepath.Join(root, "deploy", "apps", "good.yaml"), `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: good
+spec:
+  sources:
+    - repoURL: https://example.com/repo
+      ref: values
+    - repoURL: https://example.com/repo
+      path: charts/cases
+      helm:
+        valueFiles:
+          - $values/values/good.yaml
+`)
+	data, err := os.ReadFile(casesValues)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, "values", "good.yaml"), string(data))
+	broken := func(name string) {
+		writeFile(t, filepath.Join(root, "deploy", name, "kustomization.yaml"), "resources:\n  - helmrelease.yaml\n")
+		writeFile(t, filepath.Join(root, "deploy", name, "helmrelease.yaml"), `apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: `+name+`
+  namespace: apps
+spec:
+  chart:
+    spec:
+      chart: web
+      version: 1.0.0
+      sourceRef:
+        kind: HelmRepository
+        name: missing
+`)
+	}
+	broken("old-broken")
+	git := gitIn(t, root)
+	git("init", "-q")
+	git("add", "-A")
+	git("commit", "-qm", "base")
+	writeFile(t, filepath.Join(root, "values", "good.yaml"), string(data)+"extra: true\n")
+
+	failures := func(out string) []string {
+		t.Helper()
+		var apps []string
+		for _, c := range decodeChecks(t, out) {
+			if c.Error != "" {
+				apps = append(apps, c.App)
+			}
+		}
+		return apps
+	}
+	scan := func() []string {
+		out, _ := runCLI(t, "scan", filepath.Join(root, "deploy"), "--changed-since", "HEAD", "--repo-root", root, "-o", "json")
+		return failures(out)
+	}
+	diff := func() []string {
+		out, _ := runCLI(t, "diff", filepath.Join(root, "deploy"), "--base", "HEAD", "--repo-root", root, "-o", "json")
+		return failures(out)
+	}
+
+	if got := scan(); len(got) != 0 {
+		t.Errorf("scan: the change only touches good, but reported the failures of %v", got)
+	}
+	if got := diff(); len(got) != 0 {
+		t.Errorf("diff: old-broken failed before the change too, but was reported: %v", got)
+	}
+
+	broken("new-broken")
+	git("add", "-A")
+	if got := scan(); len(got) != 1 || !strings.Contains(got[0], "new-broken") {
+		t.Errorf("scan: only the new broken app is touched by the change, got %v", got)
+	}
+	if got := diff(); len(got) != 1 || !strings.Contains(got[0], "new-broken") {
+		t.Errorf("diff: only the new broken app fails because of the change, got %v", got)
+	}
+}
+
 func TestFailedTargetIsReported(t *testing.T) {
 	root := t.TempDir()
 	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))

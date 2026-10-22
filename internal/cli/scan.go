@@ -66,9 +66,15 @@ reported as ERROR in the summary.`,
 				}
 			}
 
-			jobs, reports, err := g.dirJobs(dir, root, newAppFilter(only, skip))
+			jobs, failed, err := g.dirJobs(dir, root, newAppFilter(only, skip))
 			if err != nil {
 				return &exitError{code: 2, err: err}
+			}
+			var reports []*report.Check
+			for _, c := range failed {
+				if changed == nil || touches(c.AppFile, changed) {
+					reports = append(reports, c)
+				}
 			}
 			var picked, others []job
 			for _, j := range jobs {
@@ -152,6 +158,24 @@ func affected(appFile string, jobs []job, changed map[string]bool) bool {
 					return true
 				}
 			}
+		}
+	}
+	return false
+}
+
+// touches reports whether a changed file is path or lies under it; a target that
+// failed without a known file is always reported.
+func touches(path string, changed map[string]bool) bool {
+	if path == "" {
+		return true
+	}
+	p := normPath(path)
+	if changed[p] {
+		return true
+	}
+	for f := range changed {
+		if strings.HasPrefix(f, p+string(filepath.Separator)) {
+			return true
 		}
 	}
 	return false

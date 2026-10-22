@@ -56,7 +56,8 @@ def rel: if $ws != "" and startswith($ws + "/") then .[($ws | length) + 1:] else
       else empty end
     | .rank = (.kind | rank)]
 | (map(select(.diff) | "\(.app) \(.key)")) as $seen
-| map(select(.diff or (("\(.app) \(.key)") as $k | $seen | index($k) | not))) as $rows
+| map(select(.diff or (("\(.app) \(.key)") as $k | $seen | index($k) | not)))
+| (reduce .[] as $r ([]; if $r.key == "" and any(.[]; .app == $r.app and .kind == $r.kind and .detail == $r.detail) then . else . + [$r] end)) as $rows
 EOF
 )
 

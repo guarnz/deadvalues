@@ -97,6 +97,8 @@ To leave out apps that cannot render offline, list them in `skip`, by name or di
 
 With `fail-on-error: false` the errors are still in the report and the comment, with a warning at the top, and the `status` output is still `2`. Findings at the fail-on levels still fail the check, and so does a command that fails as a whole (a wrong `path`, for instance). Telling the two apart needs `jq`, which GitHub-hosted runners have; on a self-hosted runner without it, errors fail the check as with `true`.
 
+On a pull request, only the apps the change touches can fail the check: an app that already had an error before the change, and that the change does not touch, is left out of the report.
+
 An app listed as not analyzed (a target deadvalues finds but does not support yet, such as an Argo CD Helm chart from another git repository) is shown in the comment with its reason and never fails the check, whatever `fail-on-error` says.
 
 To report without ever failing, for instance while trying the action on a repository:
@@ -169,7 +171,7 @@ Changed:
 _Stats_: [Apps: 1], [Renders: 120], [Run: 1s], [Base: 0bc7546] · Run · Docs
 ````
 
-- The summary starts with one line per app and its counts, then lists the keys from the most to the least severe: breaking, error, pinned, dead, changed, fixed, redundant, conditional. A key the `diff` reports is not repeated from the `scan`.
+- The summary starts with one line per app and its counts, then lists the keys from the most to the least severe: breaking, error, pinned, dead, changed, fixed, redundant, conditional. A key the `diff` reports is not repeated from the `scan`, and an error both report is shown once.
 - The summary is a `diff` block, so GitHub colors it: an app line is red with a breaking change or an error, orange with a pinned or dead key, and green otherwise. A key line is red for breaking and error, orange for pinned and dead, green for fixed, and plain for the rest.
 - An app section opens by default when it has a breaking change or an error. The Line column links to the file and line of the commit.
 - A `CAUTION` alert appears only when the check fails; a `NOTE` when there was no base, so every app was scanned. Without findings the report says "No findings in the changed apps."

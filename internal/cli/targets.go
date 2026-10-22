@@ -199,15 +199,13 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 					continue
 				}
 				if err != nil {
-					c := report.Failed(app.Name, err)
-					c.AppFile = f
-					failed = append(failed, c)
+					failed = append(failed, failedAt(app.Name, f, err))
 					continue
 				}
 				jobs = append(jobs, js...)
 			}
 		case !errors.Is(err, argo.ErrNotApplication):
-			failed = append(failed, report.Failed(f, err))
+			failed = append(failed, failedAt(f, f, err))
 		case !inTree[normPath(f)] && g.hasRelease(f):
 			releaseFiles = append(releaseFiles, f)
 		}
@@ -233,6 +231,14 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 		failed = append(failed, fails...)
 	}
 	return jobs, failed, nil
+}
+
+// failedAt reports a target that cannot be resolved, with the file or overlay
+// directory it comes from, so --changed-since can tell whether a change touches it.
+func failedAt(name, file string, err error) *report.Check {
+	c := report.Failed(name, err)
+	c.AppFile = file
+	return c
 }
 
 // noHelmSource reports whether appJobs failed only because the Application has no Helm source.
@@ -296,7 +302,7 @@ func (g *globals) fluxFileJobs(files []string, root string, t *targetFlags, filt
 		vars, varNotes := g.fluxVars(root, filepath.Dir(f))
 		objs, err := flux.ParseFile(f, vars)
 		if err != nil {
-			failed = append(failed, report.Failed(f, err))
+			failed = append(failed, failedAt(f, f, err))
 			continue
 		}
 		for _, o := range objs {
@@ -308,14 +314,12 @@ func (g *globals) fluxFileJobs(files []string, root string, t *targetFlags, filt
 				continue
 			}
 			if err != nil {
-				c := report.Failed(o.ID(), err)
-				c.AppFile = f
-				failed = append(failed, c)
+				failed = append(failed, failedAt(o.ID(), f, err))
 				continue
 			}
 			j, err := releaseJob(rel, "", f, relPath(root, f), t)
 			if err != nil {
-				failed = append(failed, report.Failed(rel.ID, err))
+				failed = append(failed, failedAt(rel.ID, f, err))
 				continue
 			}
 			j.notes = append(append([]string{}, j.notes...), varNotes...)
@@ -336,11 +340,11 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 	components := g.fluxComponents(root, dir)
 	out, err := flux.Build(dir, vars, components...)
 	if err != nil {
-		return nil, []*report.Check{report.Failed(name, fmt.Errorf("kustomize build: %w", err))}
+		return nil, []*report.Check{failedAt(name, dir, fmt.Errorf("kustomize build: %w", err))}
 	}
 	objs, err := flux.ParseYAML(out)
 	if err != nil {
-		return nil, []*report.Check{report.Failed(name, err)}
+		return nil, []*report.Check{failedAt(name, dir, err)}
 	}
 	attr := flux.NewAttributor(flux.Tree(dir, components...), vars)
 	res := &flux.Resolver{
@@ -362,12 +366,12 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 			continue
 		}
 		if err != nil {
-			failed = append(failed, report.Failed(prefixed(label, o.ID()), err))
+			failed = append(failed, failedAt(prefixed(label, o.ID()), attr.File(o), err))
 			continue
 		}
 		j, err := releaseJob(rel, label, attr.File(o), relPath(root, dir), nil)
 		if err != nil {
-			failed = append(failed, report.Failed(prefixed(label, rel.ID), err))
+			failed = append(failed, failedAt(prefixed(label, rel.ID), attr.File(o), err))
 			continue
 		}
 		j.notes = append(append([]string{}, j.notes...), varNotes...)

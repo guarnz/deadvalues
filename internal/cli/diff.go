@@ -352,16 +352,23 @@ func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string,
 		return nil, err
 	}
 	var old map[string]job
+	oldFailed := map[string]bool{}
 	if baseDir := s.inBase(absDir); dirExists(baseDir) {
-		oldJobs, _, err := g.dirJobs(baseDir, s.baseRoot, filter.in(s.inBase))
+		oldJobs, oldFails, err := g.dirJobs(baseDir, s.baseRoot, filter.in(s.inBase))
 		if err != nil {
 			return nil, err
 		}
 		old = byIdent(oldJobs)
+		for _, f := range oldFails {
+			oldFailed[failureKey(f, s.baseRoot)] = true
+		}
 	}
 
 	var reports []*report.Diff
 	for _, f := range failed {
+		if oldFailed[failureKey(f, s.headRoot)] {
+			continue
+		}
 		d := report.FailedDiff(f.App, errors.New(f.Error))
 		d.AppFile = f.AppFile
 		reports = append(reports, d)
@@ -377,6 +384,12 @@ func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string,
 		s.relocate(d)
 	}
 	return reports, nil
+}
+
+// failureKey identifies a target that cannot be resolved on one side, without
+// the checkout root, so the same failure on base and head compares equal.
+func failureKey(c *report.Check, root string) string {
+	return strings.ReplaceAll(c.App+"\x00"+c.Error, root, "")
 }
 
 func dirExists(p string) bool {

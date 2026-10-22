@@ -52,6 +52,8 @@ A ref that does not exist locally is looked up on `origin` (`--head renovate/exa
 
 `scan --changed-since <ref>` compares with the point where the branch left `<ref>` (their merge base), as a pull request does, so changes that reached `<ref>` after the branch started are not counted.
 
+An app that fails to load (its chart source is not found, or its kustomize overlay does not build) is reported by `scan --changed-since` only when a change touches its file or overlay, and by `diff --base` only when the change causes the error, not when it was already there at the base. A full `scan` reports every one of them.
+
 It does not matter where the bump happened: an Application's `targetRevision`, a HelmRelease `version`, an `OCIRepository` tag or an overlay patch.
 
 With `-f` alone, the comparison runs for every Application and HelmRelease that loads those values files. A values file that no manifest loads has no chart version in git; use `--chart` with `--from` and `--to` for it.
