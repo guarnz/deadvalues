@@ -56,6 +56,27 @@ docker run --rm -v "$PWD:/repo" ghcr.io/guarnz/deadvalues scan apps
 - The image runs as a non-root user (UID 65532). `prune` writes to the mounted files, so run it as your user: `docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo" ghcr.io/guarnz/deadvalues prune ...`.
 - For private chart repositories, mount your Helm configuration: `-e HELM_CONFIG_HOME=/helm -v "$HOME/.config/helm:/helm:ro"` (on macOS it is `~/Library/Preferences/helm`).
 
+## pre-commit
+
+```yaml
+repos:
+  - repo: https://github.com/guarnz/deadvalues
+    rev: v0.1.8
+    hooks:
+      - id: deadvalues
+```
+
+On every commit that changes a YAML file, the hook runs `deadvalues scan . --changed-since HEAD`: only the apps the staged changes touch are analyzed, including the apps that load a changed values file, and a dead key stops the commit. Changes that are not staged are left out.
+
+- **Folder and level:** `args` replaces the defaults, so keep the folder in it: `args: [kubernetes, --fail-on, redundant]`. Without `args`, the folder is the repository root and the level comes from `failOn` in `.deadvalues.yaml`, or `dead`.
+- **Only report:** `args: [., --fail-on, none]` with `verbose: true`, since pre-commit hides the output of hooks that pass.
+- **Apps that cannot render outside the cluster:** `--skip` in `args`, as with `scan`. An error stops the commit even with `--fail-on none`.
+- **First run:** pre-commit builds deadvalues at the `rev` version, downloading Go if needed. It takes a couple of minutes and about 430 MB in its cache (`~/.cache/pre-commit`); later commits take seconds. Charts are downloaded once and kept in the deadvalues cache.
+- **Binary already installed:** use `id: deadvalues-system` to run the `deadvalues` in your `PATH` instead of building it.
+- After changing `.pre-commit-config.yaml`, `git add` it: pre-commit does not run with an unstaged configuration.
+
+With another hook manager, such as lefthook, run the same command on commit: `deadvalues scan . --changed-since HEAD`.
+
 ## Requirements
 
 - **No `helm` binary and no cluster:** charts are rendered in memory with the Helm SDK.

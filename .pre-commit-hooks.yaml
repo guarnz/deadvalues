@@ -1,0 +1,16 @@
+- id: deadvalues
+  name: deadvalues
+  description: Find Helm values that have no effect in the apps a commit changes
+  entry: deadvalues scan --changed-since HEAD
+  language: golang
+  files: \.ya?ml$
+  pass_filenames: false
+  args: [.]
+- id: deadvalues-system
+  name: deadvalues
+  description: Find Helm values that have no effect in the apps a commit changes, with the deadvalues binary already in PATH
+  entry: deadvalues scan --changed-since HEAD
+  language: system
+  files: \.ya?ml$
+  pass_filenames: false
+  args: [.]

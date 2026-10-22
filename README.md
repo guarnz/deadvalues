@@ -82,6 +82,7 @@ Use both: the diff shows what the cluster gets, deadvalues shows which line of y
 | Go 1.26+ | `go install github.com/guarnz/deadvalues/cmd/deadvalues@latest` |
 | Helm plugin | `helm plugin install https://github.com/guarnz/deadvalues` (Helm 4: add `--verify=false`) |
 | Container | `docker run --rm -v "$PWD:/repo" ghcr.io/guarnz/deadvalues scan apps` |
+| pre-commit | Hook `deadvalues` in `.pre-commit-config.yaml`, see [docs/install.md](https://github.com/guarnz/deadvalues/blob/main/docs/install.md#pre-commit) |
 
 ### Requirements
 

@@ -135,6 +135,8 @@ The comment then starts with:
 
 `args` replaces the built-in flow; `mode`, `base`, `skip` and the `fail-on-*` inputs are ignored, so put `--fail-on` in `args` if you need it. The value is split on spaces and quotes are not supported.
 
+On a pull request, scan only what changed with `scan <dir> --changed-since <base>`, as the built-in flow does: a scan of every app downloads every chart and renders every key, which takes minutes on a large repository.
+
 ## Report
 
 The job summary and the pull request comment show the findings of every command together, one section per app, and leave out apps with nothing to report:
