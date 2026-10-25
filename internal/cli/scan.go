@@ -151,7 +151,7 @@ func affected(appFile string, jobs []job, changed map[string]bool) bool {
 				return true
 			}
 		}
-		if j.ref.IsLocal() {
+		if j.ref.IsLocal() && j.ref.Chart != "" {
 			dir := normPath(j.ref.Chart) + string(filepath.Separator)
 			for f := range changed {
 				if strings.HasPrefix(f, dir) {

@@ -265,6 +265,103 @@ spec:
 	}
 }
 
+func TestChangesReportOnlyTheAppsNotAnalyzedTheyTouch(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	data, err := os.ReadFile(casesValues)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, "values", "good.yaml"), string(data))
+	writeFile(t, filepath.Join(root, "deploy", "good.yaml"), `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: good
+spec:
+  sources:
+    - repoURL: https://github.com/acme/home-ops
+      ref: values
+    - repoURL: https://github.com/acme/home-ops
+      path: charts/cases
+      helm:
+        valueFiles:
+          - $values/values/good.yaml
+`)
+	writeFile(t, filepath.Join(root, "deploy", "vault.yaml"), `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+spec:
+  source:
+    repoURL: https://github.com/hashicorp/vault-helm.git
+    targetRevision: v0.25.0
+    path: .
+    helm:
+      values: |
+        server:
+          ha:
+            enabled: true
+`)
+	writeFile(t, filepath.Join(root, "deploy", "sure.yaml"), `apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: sure
+  namespace: sure
+spec:
+  url: https://github.com/acme/sure
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: sure
+  namespace: sure
+spec:
+  chart:
+    spec:
+      chart: ./charts/sure
+      sourceRef:
+        kind: GitRepository
+        name: sure
+  values:
+    replicas: 1
+`)
+	git := gitIn(t, root)
+	git("init", "-q")
+	git("remote", "add", "origin", "https://github.com/acme/home-ops.git")
+	git("add", "-A")
+	git("commit", "-qm", "base")
+	t.Chdir(root)
+
+	reported := func() []string {
+		t.Helper()
+		out, _ := runCLI(t, "scan", filepath.Join(root, "deploy"), "--changed-since", "HEAD", "--repo-root", root, "-o", "json", "--fail-on", "none")
+		var apps []string
+		for _, c := range decodeChecks(t, out) {
+			apps = append(apps, c.App)
+		}
+		return apps
+	}
+
+	writeFile(t, filepath.Join(root, "values", "good.yaml"), string(data)+"extra: true\n")
+	if got := reported(); len(got) != 1 || got[0] != "good" {
+		t.Errorf("only good changed, but the report has %v", got)
+	}
+	git("checkout", "-q", "--", ".")
+	writeFile(t, filepath.Join(root, "deploy", "sure.yaml"), strings.Replace(mustRead(t, filepath.Join(root, "deploy", "sure.yaml")), "replicas: 1", "replicas: 2", 1))
+	if got := reported(); len(got) != 1 || got[0] != "sure/sure" {
+		t.Errorf("only sure changed, but the report has %v", got)
+	}
+}
+
+func mustRead(t *testing.T, p string) string {
+	t.Helper()
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
 func TestFailedTargetIsReported(t *testing.T) {
 	root := t.TempDir()
 	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
