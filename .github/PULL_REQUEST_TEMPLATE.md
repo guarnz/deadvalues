@@ -6,6 +6,14 @@
 
 <!-- Why is this change needed -->
 
+## Type
+
+- [ ] Bug fix
+- [ ] Feature
+- [ ] Refactor
+- [ ] Build or CI
+- [ ] Docs
+
 ## Checklist
 
 <!-- Check what you did, or what does not apply -->
