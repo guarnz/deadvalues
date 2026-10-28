@@ -14,10 +14,8 @@ import (
 	"helm.sh/helm/v4/pkg/strvals"
 )
 
-// Origin is where a key was set: a values file and line, or a synthetic
-// source such as "--set" or an Application's inline values. For values
-// embedded in a manifest (a HelmRelease's spec.values), Doc is the YAML
-// document inside File and Prefix the path of the values block in it.
+// Origin is where a key was set: a file and line, or a source such as "--set". For
+// values embedded in a manifest, Doc is the YAML document in File, Prefix the block path.
 type Origin struct {
 	File   string   `json:"file"`
 	Line   int      `json:"line,omitempty"`
@@ -100,9 +98,8 @@ func (s *Set) AddSet(expr, origin string, forceString bool) error {
 	return nil
 }
 
-// AddNode merges a values block embedded in a manifest, such as a
-// HelmRelease's spec.values. n must come from parsing the whole file so its
-// line numbers are the file's.
+// AddNode merges a values block embedded in a manifest, such as spec.values; n must
+// come from parsing the whole file so its line numbers are the file's.
 func (s *Set) AddNode(n *yaml.Node, file string, doc int, prefix []string) error {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
@@ -142,9 +139,8 @@ func ResolveAliases(n *yaml.Node) *yaml.Node {
 	return &c
 }
 
-// AddAttributed merges m with origins computed per key, for values whose
-// final content comes from a kustomize build but whose keys can be traced
-// back to the files that define them.
+// AddAttributed merges m with per-key origins, for values built by kustomize whose
+// keys can be traced back to the files that define them.
 func (s *Set) AddAttributed(m map[string]interface{}, label string, attribute func(path []string) []Origin) {
 	var walk func(m map[string]interface{}, path []string)
 	walk = func(m map[string]interface{}, path []string) {
@@ -363,9 +359,8 @@ func Leaves(m map[string]interface{}, path []string, fn func(path []string, v in
 	}
 }
 
-// Resolve turns a dotted key typed by a user into a path inside m. Keys can
-// contain dots themselves (e.g. label names), so segments are joined greedily
-// until they match an existing key.
+// Resolve turns a dotted key typed by a user into a path in m. Keys may contain dots
+// (label names, for one), so segments are joined greedily until they match a key.
 func Resolve(m map[string]interface{}, dotted string) ([]string, bool) {
 	return resolve(m, strings.Split(dotted, "."))
 }

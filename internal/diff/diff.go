@@ -84,9 +84,8 @@ type ChangedOptions struct {
 	Workers     int
 }
 
-// ChangedDefaults finds defaults the user does not set whose change between
-// versions alters the rendered output of the new version: it renders the new
-// chart with the old default forced back and compares.
+// ChangedDefaults finds defaults the user does not set whose change alters the new
+// version's output, by rendering the new chart with the old default forced back.
 func ChangedDefaults(o ChangedOptions) ([]Transition, int64) {
 	type candidate struct {
 		path     []string

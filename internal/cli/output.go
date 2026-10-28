@@ -30,9 +30,8 @@ func parseOutputFiles(values []string, defaultFormat string) []outputFile {
 	return out
 }
 
-// emit writes a report to stdout and to every --output-file. A plain
-// --output-file PATH takes the place of stdout; FORMAT=FILE entries are
-// written in addition to it. Files are UTF-8 and never colored.
+// emit writes a report to stdout and every --output-file (UTF-8, never colored): a
+// plain PATH replaces stdout, and FORMAT=FILE entries are written in addition to it.
 func (g *globals) emit(write func(*report.Writer) error) error {
 	toStdout := true
 	for _, o := range g.outputs {

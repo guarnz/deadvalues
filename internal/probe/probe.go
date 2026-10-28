@@ -55,11 +55,8 @@ type Options struct {
 	Workers  int
 	Logf     func(format string, args ...interface{})
 
-	// MissingAPIs are API versions the chart checks with
-	// .Capabilities.APIVersions.Has that the render capabilities lack.
-	// RenderWithAPIs renders as if the cluster also served them. When both
-	// are set, keys that only matter with one of those APIs are reported as
-	// CONDITIONAL instead of DEAD.
+	// MissingAPIs are APIs the chart checks with Capabilities.APIVersions.Has but the
+	// render lacks; with RenderWithAPIs, keys gated by them are CONDITIONAL, not DEAD.
 	MissingAPIs    []string
 	RenderWithAPIs func(vals map[string]interface{}, apis []string) (compare.Snapshot, error)
 }
@@ -243,9 +240,8 @@ func (p *prober) classify(path []string, sub interface{}) {
 	case (hasDef && sameValue(def, sub)) || (!hasDef && sub == nil):
 		f.Status = Redundant
 	case p.sentinelChanges(path, sub):
-		// Removing the key changed nothing, but another value does: the chart
-		// reads it and the user value matches a fallback in the template,
-		// e.g. `default "ADMIN_TOKEN" .Values.x`.
+		// Removing the key changed nothing but another value does: the user value matches
+		// a fallback in the template, e.g. `default "ADMIN_TOKEN" .Values.x`.
 		f.Status = Redundant
 		f.Implicit = true
 	default:
@@ -321,9 +317,8 @@ func (p *prober) disabled(toggle []string) bool {
 	return ok && isBool && !b
 }
 
-// apiConditional checks whether the key starts to matter when the cluster
-// serves the API versions the chart looks for. It first tries all of them at
-// once, then each one alone to name the API that gates the key.
+// apiConditional checks whether the key matters once the cluster serves the APIs the
+// chart looks for: all at once, then each alone to name the one that gates the key.
 func (p *prober) apiConditional(path []string) []string {
 	if p.RenderWithAPIs == nil || len(p.MissingAPIs) == 0 {
 		return nil

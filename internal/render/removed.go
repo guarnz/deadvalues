@@ -7,9 +7,8 @@ import (
 	"helm.sh/helm/v4/pkg/chart/common"
 )
 
-// removedIn maps built-in API group/versions to the Kubernetes 1.x minor
-// release that stopped serving them. Charts still check some of these for
-// old clusters; testing them against a newer version is pointless.
+// removedIn maps built-in API group/versions to the Kubernetes 1.x minor that stopped
+// serving them; charts still check some for old clusters, pointless on newer ones.
 var removedIn = map[string]int{
 	"extensions/v1beta1":                   22,
 	"apps/v1beta1":                         16,

@@ -91,9 +91,8 @@ func parse(data []byte, file string) ([]*Object, error) {
 	}
 }
 
-// IndexRepo indexes every object of every YAML file under root, plus the
-// ConfigMaps declared by configMapGenerator entries. Files that are not valid
-// YAML (Helm templates, for instance) are skipped.
+// IndexRepo indexes every object in the YAML files under root, plus configMapGenerator
+// ConfigMaps; files that are not valid YAML, such as Helm templates, are skipped.
 func IndexRepo(root string, vars map[string]string) (*Index, error) {
 	ix := &Index{}
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
@@ -125,10 +124,8 @@ func IndexRepo(root string, vars map[string]string) (*Index, error) {
 	return ix, err
 }
 
-// Find returns the object of that kind and name. An object without a
-// namespace matches any namespace (kustomize may set it later). When several
-// match, ConfigMaps from a generator win, then the object whose file is
-// closest to near.
+// Find returns the object of that kind and name; one without a namespace matches any.
+// When several match, generator ConfigMaps win, then the file closest to near.
 func (ix *Index) Find(kind, name, namespace, near string) *Object {
 	var best *Object
 	bestScore := -1

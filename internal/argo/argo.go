@@ -132,9 +132,8 @@ func Parse(data []byte) ([]*Application, error) {
 	return apps, nil
 }
 
-// Targets resolves every Helm source of the Application. `$ref/...` value
-// files and local chart paths are resolved against repoRoot, the root of the
-// checkout that holds the Application.
+// Targets resolves every Helm source of the Application; `$ref/...` value files and
+// local chart paths are resolved against repoRoot, the root of the checkout.
 func (a *Application) Targets(repoRoot string) ([]Target, error) {
 	refs := map[string]string{}
 	for _, s := range a.Sources {
