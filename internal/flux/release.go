@@ -42,9 +42,8 @@ type otherRepository struct{ reason string }
 
 func (e *otherRepository) Error() string { return e.reason }
 
-// Resolver turns HelmRelease objects into releases. Sources, ConfigMaps and
-// Secrets are looked up in Sources. In build mode the HelmRelease comes from
-// a kustomize output and Attribute traces its values back to files.
+// Resolver turns HelmReleases into releases, with sources, ConfigMaps and Secrets from
+// Sources; in build mode, Attribute traces kustomize output values back to files.
 type Resolver struct {
 	RepoRoot string
 	Sources  *Index

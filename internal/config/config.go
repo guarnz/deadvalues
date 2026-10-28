@@ -28,9 +28,8 @@ type Flux struct {
 	Substitute map[string]string `json:"substitute"`
 }
 
-// Ignore accepts keys on purpose. Without App it applies to every app.
-// Keys are dotted patterns: `*` matches one segment, `**` any number of
-// segments, and a pattern matching a map also covers everything under it.
+// Ignore accepts keys on purpose, for every app when App is empty. Keys are dotted
+// patterns: `*` is one segment, `**` any number, and a map pattern covers its keys.
 type Ignore struct {
 	App  string   `json:"app"`
 	Keys []string `json:"keys"`

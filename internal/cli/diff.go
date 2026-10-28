@@ -124,9 +124,8 @@ same is done for the Applications and HelmReleases that load those files.`,
 	return cmd
 }
 
-// sides are the two trees a git-based diff compares: the "before" tree
-// extracted at base, and the "after" tree, which is the working tree or a
-// tree extracted at head.
+// sides are the trees a git-based diff compares: "before" extracted at base, and
+// "after", which is the working tree or a tree extracted at head.
 type sides struct {
 	root     string
 	baseRoot string
@@ -295,9 +294,8 @@ func (g *globals) diffTarget(ctx context.Context, t *targetFlags, from, to, base
 	return reports, nil
 }
 
-// diffValues handles -f alone with --base or --head: every Application or
-// HelmRelease that loads the files is diffed as if it were given to --app,
-// since only those manifests carry the chart version git can compare.
+// diffValues handles -f alone with --base or --head by diffing each manifest that loads
+// the files, as with --app, since only manifests carry a chart version to compare.
 func (g *globals) diffValues(ctx context.Context, t *targetFlags, from, to, base, head string) ([]*report.Diff, error) {
 	jobs, err := g.valuesJobs(t)
 	if err != nil {

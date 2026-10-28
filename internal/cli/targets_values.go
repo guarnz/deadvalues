@@ -9,11 +9,8 @@ import (
 	"github.com/guarnz/deadvalues/internal/values"
 )
 
-// valuesJobs handles -f given without --app or --chart: it finds what loads
-// those values files. First every Application and HelmRelease of the
-// repository that uses them (all of them, so a shared file is judged against
-// every app), else the chart directory that contains the file (a chart's
-// ci/ values, for instance). Findings are restricted to keys from the files.
+// valuesJobs handles -f alone: every app that loads the files (all of them, for a
+// shared file), else the enclosing chart directory; only keys from the files count.
 func (g *globals) valuesJobs(t *targetFlags) ([]job, error) {
 	only := map[string]bool{}
 	for _, f := range t.values {

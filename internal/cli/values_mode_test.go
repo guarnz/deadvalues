@@ -33,9 +33,8 @@ func decodeChecks(t *testing.T, out string) []anyCheck {
 	return []anyCheck{one}
 }
 
-// sharedRepo: two Applications load values/shared.yaml; "one" renders the
-// cases chart (reads labels) and also loads values/one-only.yaml, "two"
-// renders cases-v2 (renamed labels to podLabels).
+// sharedRepo: two Applications load values/shared.yaml; "one" renders cases and loads
+// values/one-only.yaml, "two" renders cases-v2, which renamed labels to podLabels.
 func sharedRepo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

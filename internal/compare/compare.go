@@ -12,9 +12,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// Snapshot is a rendered release flattened to "<object id>:<field path>" -> JSON value.
-// Keying by object identity instead of template file makes the comparison
-// immune to resources moving between templates.
+// Snapshot is a rendered release flattened to "<object id>:<field path>" -> JSON value,
+// keyed by object so resources that move between templates do not count as changes.
 type Snapshot map[string]string
 
 func Flatten(manifests map[string]string) (Snapshot, error) {

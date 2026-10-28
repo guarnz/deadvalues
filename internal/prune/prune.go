@@ -108,10 +108,8 @@ func inFlow(chain []hit) bool {
 	return false
 }
 
-// removeLines deletes the key line and every following line that belongs to
-// its value: deeper-indented lines, plus `- ` items at the key's own
-// indentation when the value is a block sequence. Trailing blank lines are
-// kept so the spacing between sections survives.
+// removeLines deletes the key line and its value (deeper lines, plus `- ` items at the
+// key's indentation for a block sequence), keeping trailing blank lines between sections.
 func removeLines(data []byte, h hit) []byte {
 	lines := strings.SplitAfter(string(data), "\n")
 	start := h.key.Line - 1

@@ -70,10 +70,8 @@ files (-f): their chart is then found from the app that uses them.`,
 	return cmd
 }
 
-// otherUsers maps every values file loaded by an app anywhere in the
-// repository, Argo CD or Flux, other than the manifest self, to the names
-// of those apps. Values embedded in manifests are left out: they belong to
-// one release only.
+// otherUsers maps each values file that other apps in the repository load to their
+// names; values embedded in manifests are left out, as they belong to one release.
 func (g *globals) otherUsers(self, root string) map[string][]string {
 	out := map[string][]string{}
 	jobs, _, err := g.dirJobs(root, root, nil)

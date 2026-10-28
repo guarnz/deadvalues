@@ -35,9 +35,8 @@ func checkoutTree(root, rev string) (string, func(), error) {
 		return "", nil, err
 	}
 	extractErr := extract(out, dir)
-	// tar stops at its end-of-archive marker, but git keeps writing the
-	// record padding after it. Drain the pipe so git can exit: on Windows
-	// the pipe buffer is smaller than that padding and both sides would block.
+	// git writes padding after tar's end-of-archive marker; drain it so git can
+	// exit (on Windows the pipe buffer is smaller and both sides would block).
 	_, _ = io.Copy(io.Discard, out)
 	if err := cmd.Wait(); err != nil {
 		cleanup()
@@ -66,9 +65,8 @@ func refExists(root, ref string) bool {
 	return git.Command(root, "rev-parse", "--verify", "--quiet", ref+"^{commit}").Run() == nil
 }
 
-// forkPoint returns the commit head branched from: its merge base with the
-// repository's default branch (origin/HEAD, else origin/main, origin/master,
-// main or master), which is what a pull request compares against.
+// forkPoint returns the merge base of head with the default branch (origin/HEAD, else
+// origin/main, origin/master, main or master), which a pull request compares against.
 func forkPoint(root, head string) (string, error) {
 	var candidates []string
 	if out, err := git.Command(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").Output(); err == nil {

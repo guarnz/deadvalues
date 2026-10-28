@@ -114,9 +114,8 @@ func (r *Renderer) Render(vals map[string]interface{}) (map[string]string, error
 	return manifests, nil
 }
 
-// clone copies the parts of a chart that dependency processing mutates
-// (metadata dependencies, values, the subchart list), so one parsed chart can
-// be rendered many times, concurrently, without re-reading it.
+// clone copies the chart parts that dependency processing mutates (dependencies,
+// values, subcharts), so one parsed chart renders many times, concurrently.
 func clone(c *chart.Chart) *chart.Chart {
 	md := *c.Metadata
 	md.Dependencies = make([]*chart.Dependency, len(c.Metadata.Dependencies))

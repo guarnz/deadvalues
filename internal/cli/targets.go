@@ -62,9 +62,8 @@ func (g *globals) manifestJobs(file string, t *targetFlags) ([]job, error) {
 	return nil, usageErr("%s: no Argo CD Application or Flux HelmRelease found", file)
 }
 
-// dirJobs collects every target under dir: Argo CD Applications, standalone
-// HelmReleases, and HelmReleases produced by building each kustomize overlay.
-// Targets that cannot be resolved are returned as failed reports.
+// dirJobs collects every target under dir (Applications, standalone HelmReleases and
+// those built from kustomize overlays); unresolvable ones come back as failed reports.
 func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report.Check, error) {
 	files, err := yamlFiles(dir)
 	if err != nil {

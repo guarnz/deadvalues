@@ -19,9 +19,8 @@ func main() {
 	os.Exit(cli.Execute(cli.BuildInfo{Version: version, Commit: commit, Date: date}))
 }
 
-// fillFromBuildInfo covers binaries built without -ldflags. `go install
-// ...@v0.1.0` records the module version (the tag), and `go build` in a git
-// checkout records a pseudo-version plus the commit and its time.
+// fillFromBuildInfo sets the version of binaries built without -ldflags: the tag
+// recorded by `go install`, or the pseudo-version and commit of `go build`.
 func fillFromBuildInfo() {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {

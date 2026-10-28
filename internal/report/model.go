@@ -58,9 +58,8 @@ type Check struct {
 	Error    string         `json:"error,omitempty"`
 }
 
-// ResolveShared handles values files loaded by several targets, such as a
-// global values file passed to many charts: a key that has no effect in one
-// chart but is used by another chart loading the same file is not reported.
+// ResolveShared handles values files loaded by several targets: a key with no effect
+// in one chart but used by another chart loading the same file is not reported.
 func ResolveShared(cs []*Check) {
 	users := map[string][]*Check{}
 	for _, c := range cs {
@@ -85,10 +84,8 @@ func ResolveShared(cs []*Check) {
 	}
 }
 
-// MarkShared handles a single-app check: keys with no effect that come only
-// from values files other Applications also load cannot be judged from this
-// app alone. They are shown as SHARED, pointing at scan, and do not fail.
-// users maps a normalized file path to the other Applications loading it.
+// MarkShared marks no-effect keys that come only from files other apps also load as
+// SHARED, left to scan and never failing; users maps a normalized path to those apps.
 func MarkShared(c *Check, users map[string][]string, norm func(string) string) {
 	for i := range c.Keys {
 		k := &c.Keys[i]
@@ -201,9 +198,8 @@ func NewCheck(app, appFile, chart string, set *values.Set, res *probe.Result, ig
 	return c
 }
 
-// Restrict keeps only the keys set in one of files (normalized with norm)
-// and recomputes the counts. Used when the user asked about specific values
-// files, so keys coming from the app's other values files are left out.
+// Restrict keeps only the keys set in files (normalized with norm) and recomputes the
+// counts, for when the user asked about specific values files.
 func (c *Check) Restrict(files map[string]bool, norm func(string) string) {
 	var kept []Key
 	for _, k := range c.Keys {

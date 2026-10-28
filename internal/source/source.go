@@ -1,6 +1,5 @@
-// Package source obtains charts from a directory, a .tgz, an HTTP Helm
-// repository or an OCI registry. Remote charts are loaded from memory and
-// optionally cached as .tgz files.
+// Package source obtains charts from a directory, a .tgz, an HTTP Helm repository or
+// an OCI registry; remote charts load from memory, with an optional .tgz cache.
 package source
 
 import (
@@ -26,9 +25,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// v2 accepts the charts the Helm 4 SDK can render: apiVersion v1 and v2.
-// apiVersion v3 charts load, but Helm itself does not install them through
-// its public API yet.
+// v2 accepts the charts the Helm 4 SDK can render, apiVersion v1 and v2; v3 charts
+// load, but Helm does not install them through its public API yet.
 func v2(c charter.Charter, err error) (*chart.Chart, error) {
 	if err != nil {
 		return nil, err
@@ -40,9 +38,8 @@ func v2(c charter.Charter, err error) (*chart.Chart, error) {
 	return out, nil
 }
 
-// Ref identifies a chart. Repo is an HTTP(S) repository URL or an OCI
-// registry path (with or without oci://, as Argo CD accepts both). With no
-// Repo, Chart is a local directory, a local .tgz or an oci:// reference.
+// Ref identifies a chart: Repo is an HTTP(S) URL or an OCI path (oci:// optional, as in
+// Argo CD); with no Repo, Chart is a local directory, a .tgz or an oci:// reference.
 type Ref struct {
 	Repo    string `json:"repo,omitempty"`
 	Chart   string `json:"chart"`
@@ -93,9 +90,8 @@ func HelmRepositoryConfig() string {
 	return helmpath.ConfigPath("repositories.yaml")
 }
 
-// ResolveAlias turns "repo/chart" into the repository registered with
-// `helm repo add`, the way `helm template repo/chart` does. Local paths and
-// oci:// references are returned unchanged; an existing local path wins.
+// ResolveAlias turns "repo/chart" into the repository from `helm repo add`, as `helm
+// template` does; oci:// references and existing local paths come back unchanged.
 func (l *Loader) ResolveAlias(ref Ref) (Ref, error) {
 	if ref.Repo != "" || strings.HasPrefix(ref.Chart, "oci://") || strings.HasPrefix(ref.Chart, ".") || filepath.IsAbs(ref.Chart) {
 		return ref, nil
