@@ -172,8 +172,8 @@ func (r *Resolver) chart(rel *Object, spec *yaml.Node, ns string) (source.Ref, e
 	return r.chartSpec(rel, cs, ns)
 }
 
-// ociChart reads an OCIRepository spec, on its own or inlined in a HelmRelease (Flux
-// 2.10): the url, and the tag or semver range of ref, latest without one.
+// ociChart reads an OCIRepository spec, on its own or inlined in a HelmRelease: the url
+// and the ref, where digest wins over semver and semver over tag, as in Flux.
 func ociChart(spec *yaml.Node, label string) (source.Ref, error) {
 	if Str(spec, "url") == "" {
 		return source.Ref{}, fmt.Errorf("%s has no url", label)
@@ -182,8 +182,8 @@ func ociChart(spec *yaml.Node, label string) (source.Ref, error) {
 	if s := Str(spec, "ref", "semver"); s != "" {
 		version = s
 	}
-	if version == "" && Str(spec, "ref", "digest") != "" {
-		return source.Ref{}, fmt.Errorf("%s is pinned by digest only; deadvalues needs a tag or a semver range", label)
+	if d := Str(spec, "ref", "digest"); d != "" {
+		version = d
 	}
 	if version == "" {
 		version = "latest"
