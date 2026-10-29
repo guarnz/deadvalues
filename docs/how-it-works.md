@@ -62,6 +62,7 @@ With `-f` alone, the comparison runs for every Application and HelmRelease that 
 
 - `lookup` returns nothing offline, so keys read only through `lookup` can look dead. deadvalues warns when a chart uses it.
 - Keys read only in `NOTES.txt` are reported as dead on purpose: they do not reach the cluster.
+- Kustomize patches applied after a `helmCharts:` render are not taken into account; a note says so.
 - `GROUP` covers keys that only matter together inside the same map; interactions across unrelated parts of the values can still show up as `DEAD`.
 - `CONDITIONAL` detects `enabled`-style toggles; a key gated by another kind of switch (e.g. `strategy.rollingUpdate` with `type: Recreate`) is reported as `DEAD`, which is accurate for the current values.
 - Charts that render resources only when the cluster serves an API (`.Capabilities.APIVersions.Has`, or `has ... .Capabilities.APIVersions`) cannot know offline whether yours does: those keys are reported as `CONDITIONAL` on that API. See [configuration](configuration.md#api-versions).

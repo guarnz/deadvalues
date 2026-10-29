@@ -53,7 +53,7 @@ The pipeline has one shape for every command:
    | `--app` | the Argo or Flux reader (`internal/argo`, `internal/flux`) reads the manifest: one target per Helm source of an Application, or per HelmRelease in the file |
    | `--chart` + `-f` | built directly from the chart and the files, no reader. The chart is a local directory or `.tgz`, a `helm repo add` name (`repo/name`), a name with `--repo URL`, or `oci://` |
    | `-f` alone | the readers of every Application and HelmRelease in the repository that loads the file; if none does, the nearest `Chart.yaml` |
-   | a directory (`scan`, `diff`) | the readers of every Application and HelmRelease in it, kustomize overlays built first |
+   | a directory (`scan`, `diff`) | the readers of every Application and HelmRelease in it, kustomize overlays built first, plus the kustomize directories with `helmCharts:` no Application points at |
 2. **Load** the chart (`internal/source`): local directory or `.tgz`, HTTP repository, OCI, or a `helm repo add` name, into memory.
 3. **Probe** (`internal/probe`): render the chart with the values, remove keys, render again, compare (section 3).
 4. **Report** (`internal/report`), or **prune** (`internal/prune`) using the origins of step 1, or **diff** (`internal/diff`) by probing two chart versions.
@@ -232,7 +232,7 @@ deadvalues/
 │   ├── cli/                     cobra commands, target discovery, git sides, outputs
 │   ├── config/                  .deadvalues.yaml
 │   ├── source/                  charts: dir, tgz, HTTP repo, OCI, repo/name, cache
-│   ├── argo/                    Application → targets
+│   ├── argo/                    Application and kustomize helmCharts → targets
 │   ├── flux/                    HelmRelease and its sources → targets; kustomize build
 │   ├── values/                  merge, origins, line positions (yaml.v3)
 │   ├── render/                  Helm SDK client-only, capabilities
@@ -310,6 +310,7 @@ Consequences of rendering offline, also listed for users in [`docs/how-it-works.
 | `if or .a .b` with `a` and `b` in different maps shows up as `DEAD` | `GROUP` only covers keys of the same map |
 | A key gated by something other than an `enabled` flag (`rollingUpdate` with `type: Recreate`) is `DEAD` | correct for the current values |
 | `apiVersion: v3` charts fail | the Helm SDK does not support them in its public API yet |
+| Kustomize patches applied after a `helmCharts:` render are left out | the chart is rendered with the Helm SDK, not through `kustomize build`; a note says so |
 
 Not supported yet:
 
@@ -317,6 +318,6 @@ Not supported yet:
 |---|---|
 | Following Flux `Kustomization` objects from `clusters/<name>`, and variables a parent `Kustomization` injects into its children with `patches` | point `scan` at the app directories; the `postBuild` of the `Kustomization` that applies a directory is read, the rest goes in `flux.substitute` |
 | Flux `chart.spec.valuesFiles` (values files inside the chart package) | a note says those keys are not taken into account |
-| Argo CD `ApplicationSet` | not read |
+| Argo CD `ApplicationSet` | not read; the kustomize directories with `helmCharts:` it points at are scanned on their own, named after their path |
 | Charts from another git repository (Argo CD and Flux) and Argo CD `$ref/` value files from another git repository | listed as not analyzed, with the reason |
 | The GitHub Actions on Windows runners | the install script supports Linux and macOS and fails with a clear message |

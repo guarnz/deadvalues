@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -193,5 +194,138 @@ spec:
 		if got := keys["monitoring.serviceMonitor"].Status; !strings.HasPrefix(got, tt.want) {
 			t.Errorf("helm block %q: monitoring.serviceMonitor is %q, want %s", tt.apis, got, tt.want)
 		}
+	}
+}
+
+func kustomizeHelmChart(release, extra string) string {
+	return "helmGlobals:\n  chartHome: ../../charts\nhelmCharts:\n  - name: cases\n    releaseName: " + release +
+		"\n    valuesFile: values.yaml\n    valuesInline:\n      replicas: 5\n" + extra
+}
+
+func TestKustomizeHelmChartsInScan(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	data, _ := os.ReadFile(casesValues)
+	for _, d := range []string{"web", "api"} {
+		writeFile(t, filepath.Join(root, "apps", d, "kustomization.yaml"), kustomizeHelmChart(d, ""))
+		writeFile(t, filepath.Join(root, "apps", d, "values.yaml"), string(data))
+	}
+	writeFile(t, filepath.Join(root, "argocd", "web.yaml"), `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+spec:
+  source:
+    repoURL: https://example.com/repo
+    path: apps/web
+`)
+
+	out, code := runCLI(t, "scan", root, "--repo-root", root, "-o", "json", "--fail-on", "none")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	var checks []jsonCheck
+	if err := json.Unmarshal([]byte(out), &checks); err != nil {
+		t.Fatalf("decode: %v\n%s", err, out)
+	}
+	byApp := map[string]jsonCheck{}
+	var names []string
+	for _, c := range checks {
+		byApp[c.App] = c
+		names = append(names, c.App)
+	}
+	sort.Strings(names)
+	if !slices.Equal(names, []string{"apps/api", "web"}) {
+		t.Fatalf("apps %v, want web through its Application and apps/api on its own, each once\n%s", names, out)
+	}
+	keys := map[string]jsonKey{}
+	for _, k := range byApp["web"].Keys {
+		keys[k.Key] = k
+	}
+	if k := keys["service.prot"]; k.Status != "DEAD" || len(k.Origins) != 1 || !strings.HasSuffix(k.Origins[0].File, "apps/web/values.yaml") || k.Origins[0].Line != 8 {
+		t.Errorf("service.prot = %+v, want DEAD from apps/web/values.yaml:8", k)
+	}
+	rep := keys["replicas"]
+	if rep.Status != "ALIVE" || len(rep.Origins) != 2 || !strings.HasSuffix(rep.Origins[1].File, "apps/web/kustomization.yaml") || rep.Origins[1].Line != 8 {
+		t.Errorf("replicas = %+v, want ALIVE, set in values.yaml and overridden by valuesInline at kustomization.yaml:8", rep)
+	}
+}
+
+func TestKustomizeHelmChartsDiffAndChangedSince(t *testing.T) {
+	srv := helmRepo(t)
+	root := t.TempDir()
+	git := gitIn(t, root)
+	git("init", "-q")
+	data, _ := os.ReadFile(casesValues)
+	chart := func(release, version string) string {
+		return "helmCharts:\n  - name: cases\n    repo: " + srv.URL + "\n    version: " + version +
+			"\n    releaseName: " + release + "\n    valuesFile: values.yaml\n"
+	}
+	for _, d := range []string{"web", "api"} {
+		writeFile(t, filepath.Join(root, "apps", d, "kustomization.yaml"), chart(d, "0.1.0"))
+		writeFile(t, filepath.Join(root, "apps", d, "values.yaml"), string(data))
+	}
+	git("add", "-A")
+	git("commit", "-qm", "one")
+	writeFile(t, filepath.Join(root, "apps", "web", "kustomization.yaml"), chart("web", "0.2.0"))
+	git("commit", "-qam", "two")
+
+	out, code := runCLI(t, "diff", filepath.Join(root, "apps"), "--repo-root", root, "--base", "HEAD~1", "--head", "HEAD", "-o", "markdown")
+	if code != 1 || !strings.Contains(out, "`apps/web` — cases 0.1.0 → 0.2.0") || !strings.Contains(out, "| **BREAKING** | `labels.team` | ALIVE → DEAD |") {
+		t.Errorf("diff: exit %d, want the web bump with labels.team breaking\n%s", code, out)
+	}
+	if strings.Contains(out, "apps/api") {
+		t.Errorf("diff: apps/api did not change its chart version\n%s", out)
+	}
+
+	out, code = runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "--changed-since", "HEAD~1", "-o", "json", "--fail-on", "none")
+	var names []string
+	for _, c := range decodeChecks(t, out) {
+		names = append(names, c.App)
+	}
+	if code != 0 || !slices.Equal(names, []string{"apps/web"}) {
+		t.Errorf("scan --changed-since: exit %d, apps %v, want only apps/web\n%s", code, names, out)
+	}
+}
+
+func TestKustomizeVersionBumpUnderAnApplication(t *testing.T) {
+	srv := helmRepo(t)
+	root := t.TempDir()
+	git := gitIn(t, root)
+	git("init", "-q")
+	data, _ := os.ReadFile(casesValues)
+	chart := func(release, version string) string {
+		return "  - name: cases\n    repo: " + srv.URL + "\n    version: " + version +
+			"\n    releaseName: " + release + "\n    valuesFile: values.yaml\n"
+	}
+	writeFile(t, filepath.Join(root, "apps", "web", "values.yaml"), string(data))
+	writeFile(t, filepath.Join(root, "apps", "web", "kustomization.yaml"), "helmCharts:\n"+chart("web", "0.1.0")+chart("web", "0.1.0"))
+	writeFile(t, filepath.Join(root, "argocd", "web.yaml"), `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+spec:
+  source:
+    repoURL: https://example.com/repo
+    path: apps/web
+`)
+	git("add", "-A")
+	git("commit", "-qm", "one")
+	writeFile(t, filepath.Join(root, "apps", "web", "kustomization.yaml"), "helmCharts:\n"+chart("web", "0.1.0")+chart("web", "0.2.0"))
+	git("commit", "-qam", "two")
+
+	out, code := runCLI(t, "scan", root, "--repo-root", root, "--changed-since", "HEAD~1", "-o", "json", "--fail-on", "none")
+	var names []string
+	for _, c := range decodeChecks(t, out) {
+		names = append(names, c.App)
+	}
+	sort.Strings(names)
+	if code != 0 || !slices.Equal(names, []string{"web/web/cases", "web/web/cases#2"}) {
+		t.Errorf("scan --changed-since: exit %d, apps %v, want both charts of the Application whose kustomization changed\n%s", code, names, out)
+	}
+
+	out, code = runCLI(t, "diff", root, "--repo-root", root, "--base", "HEAD~1", "--head", "HEAD", "-o", "markdown")
+	if code != 1 || !strings.Contains(out, "`web/web/cases#2` — cases 0.1.0 → 0.2.0") || strings.Count(out, "### ") != 1 {
+		t.Errorf("diff: exit %d, want only the bumped chart, paired with its own old version\n%s", code, out)
 	}
 }

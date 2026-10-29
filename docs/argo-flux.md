@@ -7,8 +7,9 @@
 | Manifest | `Application`, single or multi-source; every Application in a file is read, as in an app-of-apps file | `HelmRelease` (`helm.toolkit.fluxcd.io/v2`) |
 | Chart | `repoURL` + `chart` + `targetRevision`, or a local `path` | `chart.spec.sourceRef` → `HelmRepository` (HTTP or OCI), `GitRepository` in the same repo; `chartRef` → `OCIRepository` or `HelmChart`. Semver ranges (`>=1.0.0`, `1.x`) are resolved |
 | Values | `valueFiles` (`$values/` refs), `values`, `valuesObject`, `parameters` | `valuesFrom` ConfigMaps/Secrets (manifests or `configMapGenerator`, `targetPath`, `optional`), then `spec.values` |
+| Kustomize | A `path` with a `kustomization.yaml` whose `helmCharts:` render the app, also in its local bases and components (see [below](#kustomize-helmcharts)) | — |
 | Overlays | — | A directory with a `kustomization.yaml` is built in process (the same kustomize library Flux uses), so patches are applied; the `components` of the Flux `Kustomization` whose `spec.path` is that directory are added, as Flux does; each key still points to the file and line that set it |
-| Not read | `ApplicationSet`; Helm charts and `$ref/` value files from other git repositories (listed as not analyzed, see below) | the values of SOPS-encrypted Secrets and of sources not in the repository (reported as a note, see `valuesFrom` below), charts from other git repositories (listed as not analyzed, see below), `chart.spec.valuesFiles` (reported as a note), `${var}` you do not define (left as text) |
+| Not read | `ApplicationSet` (the kustomize directories with `helmCharts:` it points at are still scanned, named after their path); Helm charts and `$ref/` value files from other git repositories (listed as not analyzed, see below) | the values of SOPS-encrypted Secrets and of sources not in the repository (reported as a note, see `valuesFrom` below), charts from other git repositories (listed as not analyzed, see below), `chart.spec.valuesFiles` (reported as a note), `${var}` you do not define (left as text) |
 
 ## Argo CD Applications
 
@@ -53,6 +54,22 @@ The Flux `Kustomization` is the one whose `spec.path` is the HelmRelease's direc
 YAML anchors and aliases (`name: &app web`, then `targetNamespace: *namespace` or `APP: *app`) are followed in every field of HelmReleases, Kustomizations and sources, as Flux reads them.
 
 A HelmRelease is shown as `<namespace>/<name>`. When several sources or ConfigMaps have the same name, a ConfigMap from a `configMapGenerator` wins, then an object in the same namespace, then the one whose directory shares the longest prefix with the HelmRelease (`clusters/staging` versus `clusters/production`).
+
+## Kustomize helmCharts
+
+Argo CD renders a kustomize directory with `helmCharts:` through `kustomize build --enable-helm`. deadvalues reads the same entries and renders each chart with the Helm SDK, without the `helm` binary, following kustomize's rules:
+
+| Field | How it is read |
+|---|---|
+| `repo` + `name` + `version` | the chart, from an HTTP or OCI repository; without `repo`, the local chart in `helmGlobals.chartHome` (default `charts`) |
+| `releaseName`, `namespace` | the release; without `releaseName` the chart name is used instead of kustomize's random one |
+| `valuesFile`, `valuesInline`, `additionalValuesFiles` | merged in kustomize's order: `valuesInline` over `valuesFile` (`valuesMerge: override`, the default), the other way round with `merge`, `valuesInline` alone with `replace`, then `additionalValuesFiles`. Keys from `valuesInline` point to their line in the kustomization |
+| `apiVersions`, `kubeVersion` | used for the render, as with a Helm source |
+| `resources`, `components` | local bases and components are read too, and so are the `kustomize.components` of the Application |
+
+A directory an Application points at is shown with the Application's name. `scan` also reads the kustomize directories with `helmCharts:` that no Application points at, which covers an `ApplicationSet` with a git directory generator and plain `kustomize build`: they are shown with their path, such as `apps/immich`. When two charts of one kustomization would get the same name, such as two entries with the same `releaseName`, the chart name is added: `apps/nextcloud/nextcloud/app-template`.
+
+Not taken into account: patches, which kustomize applies after the chart is rendered (a note says so); remote bases; `helmCharts` declared through `generators:`. `prune` leaves keys in `valuesInline` in place.
 
 ## Kustomize overlays
 

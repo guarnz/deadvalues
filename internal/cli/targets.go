@@ -87,11 +87,17 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 	var jobs []job
 	var failed []*report.Check
 	var releaseFiles []string
+	covered := map[string]bool{}
 	for _, f := range files {
 		apps, err := argo.Load(f)
 		switch {
 		case err == nil:
 			for _, app := range apps {
+				for _, s := range app.Sources {
+					if s.Path != "" {
+						covered[normPath(filepath.Join(root, filepath.FromSlash(s.Path)))] = true
+					}
+				}
 				if !filter.keep(f, app.Name) {
 					continue
 				}
@@ -112,6 +118,14 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 		}
 	}
 
+	for _, r := range roots {
+		if covered[normPath(r)] {
+			continue
+		}
+		js, fails := g.kustomizeJobs(r, root, filter)
+		jobs = append(jobs, js...)
+		failed = append(failed, fails...)
+	}
 	if len(releaseFiles) > 0 {
 		js, fails := g.fluxFileJobs(releaseFiles, root, nil, filter)
 		jobs = append(jobs, js...)
