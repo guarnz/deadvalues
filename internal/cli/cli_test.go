@@ -313,6 +313,23 @@ func TestPrune(t *testing.T) {
 	}
 }
 
+func TestTestHooksDoNotHideDeadKeys(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "Chart.yaml"), "apiVersion: v2\nname: web\nversion: 0.1.0\n")
+	writeFile(t, filepath.Join(dir, "values.yaml"), "replicaCount: 1\n")
+	writeFile(t, filepath.Join(dir, "templates", "deployment.yaml"), "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: {{ .Values.replicaCount }}\n")
+	writeFile(t, filepath.Join(dir, "templates", "tests", "connection.yaml"), "apiVersion: v1\nkind: Pod\nmetadata:\n  name: web-test-{{ randAlphaNum 5 | lower }}\n  annotations:\n    helm.sh/hook: test-success\n")
+	values := filepath.Join(t.TempDir(), "values.yaml")
+	writeFile(t, values, "replicaCount: 2\nreplicaCountt: 3\n")
+
+	out, _ := runCLI(t, "check", "--chart", dir, "-f", values, "-o", "json", "--fail-on", "none")
+	_, keys := statuses(t, out)
+	if keys["replicaCountt"].Status != "DEAD" || keys["replicaCount"].Status != "ALIVE" {
+		t.Errorf("replicaCountt = %q, replicaCount = %q; a test Pod with a random name must not make every key alive\n%s",
+			keys["replicaCountt"].Status, keys["replicaCount"].Status, out)
+	}
+}
+
 func TestHelpAndVersionOutsideTerminal(t *testing.T) {
 	out, code := runCLI(t)
 	if code != 0 {

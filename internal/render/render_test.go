@@ -9,6 +9,55 @@ import (
 	chart "helm.sh/helm/v4/pkg/chart/v2"
 )
 
+func TestRenderLeavesOutTestHooks(t *testing.T) {
+	c := &chart.Chart{
+		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
+		Templates: []*common.File{
+			{Name: "templates/hooks.yaml", Data: []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: test-{{ randAlphaNum 5 | lower }}
+  annotations:
+    helm.sh/hook: test-success
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: settings
+`)},
+			{Name: "templates/tests/only-test.yaml", Data: []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: probe
+  annotations:
+    "helm.sh/hook": test
+`)},
+		},
+	}
+	r, err := New(c, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := r.Render(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hooks := out["demo/templates/hooks.yaml"]
+	if strings.Contains(hooks, "kind: Pod") || !strings.Contains(hooks, "name: migrate") || !strings.Contains(hooks, "name: settings") {
+		t.Errorf("hooks.yaml should keep the pre-install Job and the ConfigMap and drop the test Pod:\n%s", hooks)
+	}
+	if _, ok := out["demo/templates/tests/only-test.yaml"]; ok {
+		t.Error("a template holding only a test hook should render to nothing")
+	}
+}
+
 func TestWithGroupVersions(t *testing.T) {
 	got := withGroupVersions([]string{"monitoring.coreos.com/v1/ServiceMonitor", "v1/Service", "apps/v1", "cert-manager.io/v1"})
 	want := []string{"monitoring.coreos.com/v1/ServiceMonitor", "v1/Service", "apps/v1", "cert-manager.io/v1", "monitoring.coreos.com/v1", "v1"}
