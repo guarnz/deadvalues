@@ -22,7 +22,7 @@ Renders run in parallel, in memory, client-side (like `helm template`). Nothing 
 | `./path`, `app-1.0.0.tgz` | a local directory or archive; a local path wins over a `repo/name` with the same spelling |
 | `repo/name` | a repository from `helm repo add` (`repositories.yaml`, `HELM_REPOSITORY_CONFIG`), with its username and password |
 | `name` with `--repo URL` | an HTTP repository: `index.yaml`, then the `.tgz` |
-| `oci://...`, or `--repo oci://...` | an OCI registry, with the credentials of `helm registry login` |
+| `oci://...`, or `--repo oci://...` | an OCI registry, with the credentials of `helm registry login`; a digest (`oci://...@sha256:...`, or `--version sha256:...`) pulls that exact chart |
 
 Without `--version`, the latest chart is used; a range (`1.x`, `>=1.0.0`) picks the highest match. Remote charts are loaded in memory and cached as `.tgz` in the user cache directory (`~/.cache/deadvalues` on Linux), or `--cache-dir`; `--no-cache` always downloads.
 

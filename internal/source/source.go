@@ -135,7 +135,12 @@ func isHTTP(s string) bool {
 	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 }
 
+// oci pulls a chart by tag, by the highest tag in a semver range, or by digest
+// (version "sha256:…", or a name ending in "@sha256:…").
 func (l *Loader) oci(name, version string) (*chart.Chart, error) {
+	if n, digest, ok := strings.Cut(name, "@"); ok {
+		name, version = n, digest
+	}
 	if version == "" {
 		version = "*"
 	}
@@ -143,7 +148,10 @@ func (l *Loader) oci(name, version string) (*chart.Chart, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c, ok := constraint(version); ok {
+	sep := ":"
+	if isDigest(version) {
+		sep = "@"
+	} else if c, ok := constraint(version); ok {
 		tags, err := client.Tags(name)
 		if err != nil {
 			return nil, fmt.Errorf("oci://%s: listing tags for %q: %w", name, version, err)
@@ -155,16 +163,20 @@ func (l *Loader) oci(name, version string) (*chart.Chart, error) {
 		version = v
 	}
 	data, err := l.cached(name, version, func() ([]byte, error) {
-		res, err := client.Pull(name+":"+version, registry.PullOptWithChart(true))
+		res, err := client.Pull(name+sep+version, registry.PullOptWithChart(true))
 		if err != nil {
 			return nil, err
 		}
 		return res.Chart.Data, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("oci://%s:%s: %w", name, version, err)
+		return nil, fmt.Errorf("oci://%s%s%s: %w", name, sep, version, err)
 	}
 	return v2(loader.LoadArchive(bytes.NewReader(data)))
+}
+
+func isDigest(version string) bool {
+	return strings.HasPrefix(version, "sha256:")
 }
 
 // constraint parses version as a semver range ("1.x", ">=1.0.0 <2.0.0").

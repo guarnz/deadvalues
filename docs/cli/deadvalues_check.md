@@ -36,7 +36,7 @@ deadvalues check [flags]
       --repo-root string   repository root for $values/, sources and local charts (default: git top-level)
       --set stringArray    extra values, same syntax as helm --set
   -f, --values strings     values files, merged in order; given alone, the chart is found from the Application, HelmRelease or chart directory that uses them
-      --version string     chart version or semver range (default: latest)
+      --version string     chart version, semver range or OCI digest (default: latest)
 ```
 
 ### Options inherited from parent commands

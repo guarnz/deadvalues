@@ -34,7 +34,7 @@ func (t *targetFlags) register(fs *pflag.FlagSet, withVersion bool) {
 	fs.StringVar(&t.chart, "chart", "", `local chart directory or .tgz, repo/name from "helm repo add", chart name with --repo, or oci:// reference`)
 	fs.StringVar(&t.repo, "repo", "", "Helm repository URL for --chart")
 	if withVersion {
-		fs.StringVar(&t.version, "version", "", "chart version or semver range (default: latest)")
+		fs.StringVar(&t.version, "version", "", "chart version, semver range or OCI digest (default: latest)")
 	}
 	fs.StringSliceVarP(&t.values, "values", "f", nil, "values files, merged in order; given alone, the chart is found from the Application, HelmRelease or chart directory that uses them")
 	fs.StringArrayVar(&t.set, "set", nil, "extra values, same syntax as helm --set")

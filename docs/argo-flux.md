@@ -37,7 +37,7 @@
 |---|---|
 | `chart.spec.sourceRef` → `HelmRepository` | found by name in the repository; `spec.url` (`type: oci` means OCI) |
 | `chart.spec.sourceRef` → `GitRepository` | if it is this repository, `chart` is a local path; when its `spec.url` is another repository than the checkout's `origin` (https, ssh and `git@host:owner/repo` URLs of one repository match), the HelmRelease is listed as not analyzed, with the repository; without an `origin` remote, a chart path that is not here is an error |
-| `chartRef` → `OCIRepository` | `spec.url` + `spec.ref.tag` or `spec.ref.semver`; a digest alone is an error, a tag or range is needed |
+| `chartRef` → `OCIRepository` | `spec.url` + `spec.ref`: `digest`, else `semver`, else `tag`, the order Flux uses; without a ref, `latest` |
 | `chart.spec` with an inline `OCIRepository` (Flux 2.10: `url` + `ref`, optionally `chart.kind: OCIRepository`) | read like a `chartRef` → `OCIRepository`, with no separate object |
 | `chartRef` → `HelmChart` | followed to its `HelmRepository` |
 | `version` with a range (`>=1.0.0`, `1.x`) | HTTP: picked from `index.yaml`; OCI: the highest tag that satisfies it |
