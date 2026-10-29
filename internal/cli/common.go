@@ -62,6 +62,8 @@ type job struct {
 	only map[string]bool
 	// skip is why the target is reported without being analyzed.
 	skip string
+	// watch are more files whose change touches the target, such as kustomization files.
+	watch []string
 	// kubeVersion and apiVersions are the app's own, as an Argo CD source can set them.
 	kubeVersion string
 	apiVersions []string

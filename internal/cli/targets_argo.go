@@ -5,8 +5,28 @@ import (
 	"strings"
 
 	"github.com/guarnz/deadvalues/internal/argo"
+	"github.com/guarnz/deadvalues/internal/report"
 	"github.com/guarnz/deadvalues/internal/values"
 )
+
+// kustomizeJobs analyzes the helmCharts of a kustomize directory that no Application
+// points at, named after its path, as an ApplicationSet or plain kustomize renders it.
+func (g *globals) kustomizeJobs(dir, root string, filter *appFilter) ([]job, []*report.Check) {
+	file := argo.KustomizationFile(dir)
+	rel := relPath(root, dir)
+	if file == "" || filter.skipsDir(dir) || !filter.keep(file, rel) {
+		return nil, nil
+	}
+	app := &argo.Application{Name: rel, File: file, Sources: []argo.Source{{Path: rel}}}
+	js, err := g.appJobs(app, root, nil)
+	if noHelmSource(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, []*report.Check{failedAt(rel, file, err)}
+	}
+	return js, nil
+}
 
 func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([]job, error) {
 	targets, err := app.Targets(root)
@@ -24,6 +44,17 @@ func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([
 			continue
 		}
 		set := values.New()
+		for _, l := range tg.Layers {
+			var err error
+			if l.Node != nil {
+				err = set.AddNode(l.Node, l.File, 0, l.Prefix)
+			} else {
+				err = set.AddFile(l.File)
+			}
+			if err != nil {
+				return nil, &exitError{code: 2, err: err}
+			}
+		}
 		for _, f := range tg.ValueFiles {
 			if err := set.AddFile(f); err != nil {
 				return nil, &exitError{code: 2, err: err}
@@ -58,6 +89,8 @@ func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([
 			release:     tg.Release,
 			namespace:   tg.Namespace,
 			vals:        set,
+			notes:       tg.Notes,
+			watch:       tg.Files,
 			kubeVersion: tg.KubeVersion,
 			apiVersions: tg.APIVersions,
 		}

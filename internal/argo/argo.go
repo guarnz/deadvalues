@@ -26,12 +26,19 @@ type Application struct {
 }
 
 type Source struct {
-	RepoURL        string `json:"repoURL"`
-	Chart          string `json:"chart"`
-	TargetRevision string `json:"targetRevision"`
-	Path           string `json:"path"`
-	Ref            string `json:"ref"`
-	Helm           *Helm  `json:"helm"`
+	RepoURL        string     `json:"repoURL"`
+	Chart          string     `json:"chart"`
+	TargetRevision string     `json:"targetRevision"`
+	Path           string     `json:"path"`
+	Ref            string     `json:"ref"`
+	Helm           *Helm      `json:"helm"`
+	Kustomize      *Kustomize `json:"kustomize"`
+}
+
+// Kustomize holds the kustomize options of a source that change which charts it renders.
+type Kustomize struct {
+	Components []string      `json:"components"`
+	Patches    []interface{} `json:"patches"`
 }
 
 type Helm struct {
@@ -85,6 +92,11 @@ type Target struct {
 	APIVersions []string
 	// Skip is why a Helm source cannot be analyzed yet; it is reported, not rendered.
 	Skip string
+	// Layers are the values of a kustomize helmCharts entry, in the order helm merges them.
+	Layers []Layer
+	Notes  []string
+	// Files are the kustomization files the target comes from, so a change to them touches it.
+	Files []string
 }
 
 var docSeparator = regexp.MustCompile(`(?m)^---\s*$`)
@@ -157,7 +169,16 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 			t.Name = s.Chart
 		case s.Path != "":
 			dir := filepath.Join(repoRoot, filepath.FromSlash(s.Path))
-			if _, err := os.Stat(filepath.Join(dir, "Chart.yaml")); err != nil {
+			_, noChart := os.Stat(filepath.Join(dir, "Chart.yaml"))
+			if noChart != nil && s.Helm == nil && KustomizationFile(dir) != "" {
+				ts, err := a.kustomizeTargets(dir, i, s)
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", a.Name, err)
+				}
+				out = append(out, ts...)
+				continue
+			}
+			if noChart != nil {
 				if s.Helm != nil {
 					t.Name = path.Base(strings.TrimSuffix(s.RepoURL, ".git"))
 					t.Skip = fmt.Sprintf("Helm chart at %s in %s is not in this repository; charts from other git repositories are not supported yet", s.Path, s.RepoURL)

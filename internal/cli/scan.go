@@ -146,7 +146,7 @@ func affected(appFile string, jobs []job, changed map[string]bool) bool {
 		return true
 	}
 	for _, j := range jobs {
-		for _, src := range j.vals.Sources {
+		for _, src := range append(append([]string{}, j.vals.Sources...), j.watch...) {
 			if changed[normPath(src)] {
 				return true
 			}
