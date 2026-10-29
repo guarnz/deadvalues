@@ -148,17 +148,7 @@ func (r *Resolver) chart(rel *Object, spec *yaml.Node, ns string) (source.Ref, e
 			if o == nil {
 				return source.Ref{}, fmt.Errorf("OCIRepository %s/%s not found in the repository", crNS, name)
 			}
-			version := Str(o.Node, "spec", "ref", "tag")
-			if s := Str(o.Node, "spec", "ref", "semver"); s != "" {
-				version = s
-			}
-			if version == "" && Str(o.Node, "spec", "ref", "digest") != "" {
-				return source.Ref{}, fmt.Errorf("OCIRepository %s/%s is pinned by digest only; deadvalues needs a tag or a semver range", crNS, name)
-			}
-			if version == "" {
-				version = "latest"
-			}
-			return source.Ref{Chart: Str(o.Node, "spec", "url"), Version: version}, nil
+			return ociChart(Get(o.Node, "spec"), "OCIRepository "+crNS+"/"+name)
 		case "HelmChart":
 			o := r.find(kind, name, crNS, rel.File)
 			if o == nil {
@@ -173,7 +163,32 @@ func (r *Resolver) chart(rel *Object, spec *yaml.Node, ns string) (source.Ref, e
 	if cs == nil {
 		return source.Ref{}, fmt.Errorf("no spec.chart or spec.chartRef")
 	}
+	if Str(spec, "chart", "kind") == "OCIRepository" || Get(cs, "sourceRef") == nil && Str(cs, "url") != "" {
+		return ociChart(cs, "the OCIRepository in spec.chart.spec")
+	}
+	if Get(cs, "sourceRef") == nil {
+		return source.Ref{}, fmt.Errorf("spec.chart.spec has neither a sourceRef nor an OCIRepository url")
+	}
 	return r.chartSpec(rel, cs, ns)
+}
+
+// ociChart reads an OCIRepository spec, on its own or inlined in a HelmRelease (Flux
+// 2.10): the url, and the tag or semver range of ref, latest without one.
+func ociChart(spec *yaml.Node, label string) (source.Ref, error) {
+	if Str(spec, "url") == "" {
+		return source.Ref{}, fmt.Errorf("%s has no url", label)
+	}
+	version := Str(spec, "ref", "tag")
+	if s := Str(spec, "ref", "semver"); s != "" {
+		version = s
+	}
+	if version == "" && Str(spec, "ref", "digest") != "" {
+		return source.Ref{}, fmt.Errorf("%s is pinned by digest only; deadvalues needs a tag or a semver range", label)
+	}
+	if version == "" {
+		version = "latest"
+	}
+	return source.Ref{Chart: Str(spec, "url"), Version: version}, nil
 }
 
 func (r *Resolver) chartSpec(owner *Object, cs *yaml.Node, ns string) (source.Ref, error) {
