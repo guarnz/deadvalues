@@ -91,7 +91,7 @@ The pipeline has one shape for every command:
 ```
 Deployment/apps/web:.spec.strategy.type = "Recreate"
 ```
-So the comparison does not break if a chart moves a resource to another template. `NOTES.txt` and partials are not part of the output.
+So the comparison does not break if a chart moves a resource to another template. `NOTES.txt`, partials and Helm test hooks (`helm.sh/hook: test`, as `helm template --skip-tests` leaves out and Argo CD ignores) are not part of the output; a test Pod with a random name would otherwise make every key look alive.
 
 **3. Removal with bisection.** For each top-level key:
 ```

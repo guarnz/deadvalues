@@ -6,6 +6,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -14,6 +15,8 @@ import (
 	chart "helm.sh/helm/v4/pkg/chart/v2"
 	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
 	"helm.sh/helm/v4/pkg/engine"
+	releaseutil "helm.sh/helm/v4/pkg/release/v1/util"
+	"sigs.k8s.io/yaml"
 
 	"github.com/guarnz/deadvalues/internal/values"
 )
@@ -86,8 +89,8 @@ func (r *Renderer) Defaults() (map[string]interface{}, error) {
 	return vals.AsMap(), nil
 }
 
-// Render returns the rendered manifests keyed by template path, skipping
-// NOTES.txt, partials and templates that render to nothing.
+// Render returns the rendered manifests keyed by template path, skipping NOTES.txt,
+// partials, Helm test hooks and templates that render to nothing.
 func (r *Renderer) Render(vals map[string]interface{}) (map[string]string, error) {
 	c := clone(r.chart)
 	if err := chartutil.ProcessDependencies(c, vals); err != nil {
@@ -106,12 +109,58 @@ func (r *Renderer) Render(vals map[string]interface{}) (map[string]string, error
 		if strings.HasSuffix(name, "NOTES.txt") || strings.HasPrefix(path.Base(name), "_") {
 			continue
 		}
+		content = withoutTests(content)
 		if strings.TrimSpace(content) == "" {
 			continue
 		}
 		manifests[name] = content
 	}
 	return manifests, nil
+}
+
+// withoutTests drops the Helm test hooks of a rendered template, as `helm template
+// --skip-tests` does: Argo CD never applies them, and their names are often random.
+func withoutTests(content string) string {
+	if !strings.Contains(content, "helm.sh/hook") {
+		return content
+	}
+	docs := releaseutil.SplitManifests(content)
+	keys := make([]string, 0, len(docs))
+	for k := range docs {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return manifestIndex(keys[i]) < manifestIndex(keys[j]) })
+	var kept []string
+	for _, k := range keys {
+		if !isTestHook(docs[k]) {
+			kept = append(kept, docs[k])
+		}
+	}
+	return strings.Join(kept, "\n---\n")
+}
+
+// manifestIndex is the position of a SplitManifests key, "manifest-<n>".
+func manifestIndex(key string) int {
+	n, _ := strconv.Atoi(strings.TrimPrefix(key, "manifest-"))
+	return n
+}
+
+func isTestHook(doc string) bool {
+	var m struct {
+		Metadata struct {
+			Annotations map[string]string `json:"annotations"`
+		} `json:"metadata"`
+	}
+	if err := yaml.Unmarshal([]byte(doc), &m); err != nil {
+		return false
+	}
+	for _, event := range strings.Split(m.Metadata.Annotations["helm.sh/hook"], ",") {
+		switch strings.TrimSpace(event) {
+		case "test", "test-success", "test-failure":
+			return true
+		}
+	}
+	return false
 }
 
 // clone copies the chart parts that dependency processing mutates (dependencies,
