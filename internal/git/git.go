@@ -39,6 +39,14 @@ func SameRepository(a, b string) bool {
 	return normalize(a) == normalize(b)
 }
 
+// SamePath reports whether two git URLs name the same owner/repository on any host,
+// such as a GitHub repository and its mirror on a self-hosted forge.
+func SamePath(a, b string) bool {
+	_, pa, _ := strings.Cut(normalize(a), "/")
+	_, pb, _ := strings.Cut(normalize(b), "/")
+	return pa != "" && pa == pb
+}
+
 // normalize reduces a git URL to host/path.
 func normalize(u string) string {
 	u = strings.ToLower(strings.TrimSpace(u))

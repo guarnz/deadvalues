@@ -93,13 +93,14 @@ type globals struct {
 	kubeVersionFlag bool
 	flagAPIVersions []string
 
-	cfg       *config.Config
-	loader    *source.Loader
-	colorOn   bool
-	cwd       string
-	stdout    io.Writer
-	stderr    io.Writer
-	fluxIndex map[string]*flux.Index
+	cfg        *config.Config
+	loader     *source.Loader
+	colorOn    bool
+	cwd        string
+	stdout     io.Writer
+	stderr     io.Writer
+	fluxIndex  map[string]*flux.Index
+	fluxGraphs map[string]*flux.Graph
 }
 
 func newRoot(info BuildInfo, stdout, stderr io.Writer) *cobra.Command {

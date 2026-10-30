@@ -91,15 +91,34 @@ production:podinfo/podinfo  podinfo 6.15.0      0      0          0      7
 staging:podinfo/podinfo     podinfo 6.15.0      0      0          0      7
 ```
 
-`scan` finds the overlays to build on its own (kustomize directories no other kustomization includes). A kustomize `Component` (`kind: Component`) is never built on its own, since it only makes sense inside what includes it: it is read through the overlay or the Flux `Kustomization` that lists it, with that app's namespace and variables. Point `scan` at the component's own directory to build it anyway. The Flux `Kustomization` objects in `clusters/<name>` are not followed: point `scan` at the app directories (`apps/production`, `infrastructure/controllers`).
+`scan` finds the overlays to build on its own (kustomize directories no other kustomization includes). A kustomize `Component` (`kind: Component`) is never built on its own, since it only makes sense inside what includes it: it is read through the overlay or the Flux `Kustomization` that lists it, with that app's namespace and variables. Point `scan` at the component's own directory to build it anyway.
+
+### Clusters
+
+`scan` and `diff` follow the Flux `Kustomization` objects the way the kustomize-controller does, from the root of each cluster, whatever directory you point them at:
+
+| Root | Found in |
+|---|---|
+| `FluxInstance` | `spec.sync`, as an object |
+| `flux-instance` chart | `instance.sync`, in `spec.values` or in a values file loaded through `valuesFrom` |
+| `flux bootstrap` | a `gotk-sync.yaml`, or a `flux-system` `Kustomization` that applies itself |
+| A cluster without `flux-system` in git | orphan `Kustomization`s in a directory next to a root, such as `clusters/staging` beside `clusters/production` |
+
+Each `Kustomization` is built with its `targetNamespace`, `components` and `patches`, and with the variables and patches its parents pass down; the ones in the output are followed in turn. A path without a `kustomization.yaml` gets the one Flux generates.
+
+- A base applied by two clusters is one app per cluster, named after the path that sets it apart: `main:apps/cilium:kube-system/cilium` and `utility:apps/cilium:kube-system/cilium`. With one cluster there is no prefix.
+- A HelmRelease nothing applies, such as a `ks.yaml` commented out of a `kustomization.yaml`, is listed as not applied instead of being analyzed.
+- A `git` source with the same owner and repository on another host counts as this repository, for mirrors on a self-hosted forge. A `Kustomization` with another source (another repository, `OCIRepository`, `ExternalArtifact`) is not followed.
+
+Without a root in the repository, the `Kustomization`s no other one includes are the starting points, and nothing is reported as not applied, since what applies the rest cannot be seen. The same happens when a build fails or a `ResourceSet` generates `Kustomization`s. What the graph does not reach is then read as before, as overlays and standalone files.
 
 ## Flux variables
 
-`${var}` placeholders get the `postBuild` variables of the Flux `Kustomization` that applies the directory, as on the cluster: `substituteFrom` ConfigMaps and Secrets found in the repository, then `substitute` on top. A source that is not in the repository, or is SOPS-encrypted, is reported as a note and its variables stay as `${var}` text; an `optional` one is skipped.
+`${var}` placeholders get the `postBuild` variables of the Flux `Kustomization` that applies the directory, as on the cluster: `substituteFrom` ConfigMaps and Secrets found in the repository, looked up first in what that cluster's builds output, then `substitute` on top. A source that is not in the repository, or is SOPS-encrypted, is reported as a note and its variables stay as `${var}` text; an `optional` one is skipped.
 
 The syntax is the one Flux uses, through its own `envsubst` package: defaults (`${var:=x}`, `${var:-x}`, also nested, as in `${user:=${app}}`), case (`${var^^}`, `${var,,}`), substrings, replacements and `$${var}` for a literal `${var}`. Objects with `kustomize.toolkit.fluxcd.io/substitute: disabled` are left as they are. The one difference is on purpose: a variable with no value and no default stays as text instead of becoming empty, since its value can come from the cluster.
 
-Values in `.deadvalues.yaml` win over both, and cover variables a parent `Kustomization` injects into its children with `patches`, which are not followed:
+Values in `.deadvalues.yaml` win over both, and cover variables that come from outside the repository:
 
 ```yaml
 flux:

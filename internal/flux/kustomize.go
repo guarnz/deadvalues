@@ -127,11 +127,55 @@ func walkKustomizations(dir string) (roots, components []string, err error) {
 	return roots, components, err
 }
 
+// generatedResources lists what Flux puts in the kustomization it generates for a path
+// without one: subdirectories with a kustomization, and the YAML files of the rest.
+func generatedResources(dir string) []string {
+	var out []string
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || p == dir {
+			return nil
+		}
+		rel, _ := filepath.Rel(dir, p)
+		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".") || fileExists(filepath.Join(p, "Chart.yaml")) {
+				return filepath.SkipDir
+			}
+			if IsKustomizeDir(p) {
+				out = append(out, filepath.ToSlash(rel))
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if ext := filepath.Ext(p); ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+		if objs, err := ParseFile(p, nil); err == nil && len(objs) > 0 {
+			out = append(out, filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	return out
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+// pathKustomization reads the kustomization of a Flux path, or the one Flux generates.
+func pathKustomization(dir string) *kustomization {
+	if k, ok := readKustomization(dir); ok {
+		return k
+	}
+	return &kustomization{Resources: generatedResources(dir)}
+}
+
 // Tree returns the local files that make up the build of dir, in kustomize
 // order: resources (recursively) first, then patches.
 func Tree(dir string, components ...string) []string {
 	var out []string
 	seen := map[string]bool{}
+	top := filepath.Clean(dir)
 	var walk func(dir string, extra []string)
 	walk = func(dir string, extra []string) {
 		dir = filepath.Clean(dir)
@@ -140,6 +184,9 @@ func Tree(dir string, components ...string) []string {
 		}
 		seen[dir] = true
 		k, ok := readKustomization(dir)
+		if !ok && dir == top {
+			k, ok = pathKustomization(dir), true
+		}
 		if !ok {
 			return
 		}
@@ -177,6 +224,7 @@ func Tree(dir string, components ...string) []string {
 func TreeGenerators(dir string, components ...string) []*Object {
 	var out []*Object
 	seen := map[string]bool{}
+	top := filepath.Clean(dir)
 	var walk func(dir string, extra []string)
 	walk = func(dir string, extra []string) {
 		dir = filepath.Clean(dir)
@@ -186,6 +234,9 @@ func TreeGenerators(dir string, components ...string) []*Object {
 		seen[dir] = true
 		out = append(out, generated(dir)...)
 		k, ok := readKustomization(dir)
+		if !ok && dir == top {
+			k, ok = pathKustomization(dir), true
+		}
 		if !ok {
 			return
 		}
@@ -229,15 +280,29 @@ func generated(dir string) []*Object {
 	return out
 }
 
+// Spec is what a Flux Kustomization adds to the kustomization of its path.
+type Spec struct {
+	Namespace  string
+	Components []string
+	Patches    []interface{}
+}
+
 // Build runs kustomize on dir in process, the way Flux's kustomize-controller
 // does, adding Flux components and applying ${var} substitution to the output.
 func Build(dir string, vars map[string]string, components ...string) ([]byte, error) {
+	return BuildSpec(dir, vars, Spec{Components: components})
+}
+
+// BuildSpec builds dir with a Flux Kustomization's spec: targetNamespace, components
+// and patches go into the kustomization, generated when dir has none, as in Flux.
+func BuildSpec(dir string, vars map[string]string, spec Spec) ([]byte, error) {
 	opts := krusty.MakeDefaultOptions()
 	opts.LoadRestrictions = types.LoadRestrictionsNone
 	opts.PluginConfig = types.DisabledPluginConfig()
 	fsys := filesys.MakeFsOnDisk()
-	if len(components) > 0 {
-		fsys = withComponents{FileSystem: fsys, dir: canonical(dir), components: components}
+	_, has := readKustomization(dir)
+	if !has || spec.Namespace != "" || len(spec.Components) > 0 || len(spec.Patches) > 0 {
+		fsys = withSpec{FileSystem: fsys, dir: canonical(dir), spec: spec, generate: !has}
 	}
 	m, err := krusty.MakeKustomizer(opts).Run(fsys, dir)
 	if err != nil {
@@ -250,28 +315,53 @@ func Build(dir string, vars map[string]string, components ...string) ([]byte, er
 	return substituteBuild(out, vars), nil
 }
 
-// withComponents reads dir's kustomization with extra components, as Flux does
-// for spec.components, without changing the file.
-type withComponents struct {
+// withSpec reads dir's kustomization with a Flux Kustomization's spec on top, without
+// changing the file; generate makes one up for a dir that has none.
+type withSpec struct {
 	filesys.FileSystem
-	dir        string
-	components []string
+	dir      string
+	spec     Spec
+	generate bool
 }
 
-func (f withComponents) ReadFile(path string) ([]byte, error) {
-	data, err := f.FileSystem.ReadFile(path)
-	if err != nil || !slices.Contains(kustomizationNames, filepath.Base(path)) || canonical(filepath.Dir(path)) != f.dir {
-		return data, err
+func (f withSpec) ReadFile(path string) ([]byte, error) {
+	if !slices.Contains(kustomizationNames, filepath.Base(path)) || canonical(filepath.Dir(path)) != f.dir {
+		return f.FileSystem.ReadFile(path)
 	}
 	var k map[string]interface{}
-	if err := yaml.Unmarshal(data, &k); err != nil || k == nil {
-		return data, nil
+	if f.generate {
+		if filepath.Base(path) != kustomizationNames[0] {
+			return nil, os.ErrNotExist
+		}
+		k = map[string]interface{}{"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization"}
+		var res []interface{}
+		for _, r := range generatedResources(filepath.Dir(path)) {
+			res = append(res, r)
+		}
+		k["resources"] = res
+	} else {
+		data, err := f.FileSystem.ReadFile(path)
+		if err != nil {
+			return data, err
+		}
+		if err := yaml.Unmarshal(data, &k); err != nil || k == nil {
+			return data, nil
+		}
 	}
-	list, _ := k["components"].([]interface{})
-	for _, c := range f.components {
-		list = append(list, c)
+	if f.spec.Namespace != "" {
+		k["namespace"] = f.spec.Namespace
 	}
-	k["components"] = list
+	if len(f.spec.Components) > 0 {
+		list, _ := k["components"].([]interface{})
+		for _, c := range f.spec.Components {
+			list = append(list, c)
+		}
+		k["components"] = list
+	}
+	if len(f.spec.Patches) > 0 {
+		list, _ := k["patches"].([]interface{})
+		k["patches"] = append(list, f.spec.Patches...)
+	}
 	return yaml.Marshal(k)
 }
 
@@ -311,18 +401,30 @@ func NewAttributor(files []string, vars map[string]string) *Attributor {
 	return a
 }
 
-func (a *Attributor) matches(d, rel *Object) bool {
-	return d.Name == rel.Name && (d.Namespace == "" || rel.Namespace == "" || d.Namespace == rel.Namespace)
+// docsFor returns the documents of the release: same name and namespace, or, when a
+// targetNamespace or kustomize namespace replaced it, the same name.
+func (a *Attributor) docsFor(rel *Object) []*Object {
+	var same, named []*Object
+	for _, d := range a.docs {
+		if d.Name != rel.Name {
+			continue
+		}
+		named = append(named, d)
+		if d.Namespace == "" || rel.Namespace == "" || d.Namespace == rel.Namespace {
+			same = append(same, d)
+		}
+	}
+	if len(same) > 0 {
+		return same
+	}
+	return named
 }
 
 // Origins lists every file of the build whose HelmRelease sets spec.values.<path>.
 func (a *Attributor) Origins(rel *Object, path []string) []values.Origin {
 	full := append([]string{"spec", "values"}, path...)
 	var out []values.Origin
-	for _, d := range a.docs {
-		if !a.matches(d, rel) {
-			continue
-		}
+	for _, d := range a.docsFor(rel) {
 		if k, _ := lookup(d.Node, full); k != nil {
 			out = append(out, values.Origin{File: d.File, Line: k.Line, IsFile: true, Doc: d.Doc, Prefix: []string{"spec", "values"}})
 		}
@@ -332,15 +434,14 @@ func (a *Attributor) Origins(rel *Object, path []string) []values.Origin {
 
 // File returns the file holding the base definition of the release.
 func (a *Attributor) File(rel *Object) string {
-	for _, d := range a.docs {
-		if a.matches(d, rel) && IsRelease(d) {
+	docs := a.docsFor(rel)
+	for _, d := range docs {
+		if IsRelease(d) {
 			return d.File
 		}
 	}
-	for _, d := range a.docs {
-		if a.matches(d, rel) {
-			return d.File
-		}
+	if len(docs) > 0 {
+		return docs[0].File
 	}
 	return ""
 }

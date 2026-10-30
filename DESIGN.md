@@ -168,7 +168,8 @@ The Flux reader produces the same target as the Argo one. The field-by-field rul
 - **Resolving names.** Sources and ConfigMaps are found by name. When several match (`clusters/staging` and `clusters/production` both have a `podinfo` HelmRepository), a `configMapGenerator` ConfigMap wins, then the same namespace, then the object whose directory shares the longest prefix with the HelmRelease.
 - **`prune` on a HelmRelease.** `spec.values` lives inside the manifest, and Flux files often hold an `OCIRepository` and a `HelmRelease` together, so origins keep the document and the `spec.values` prefix, and `prune` removes only that key's lines in that document. Keys from a `configMapGenerator` file are removed from that file; inline ConfigMap `data` and Secrets are not edited.
 - **`${var}` substitution.** Each placeholder goes through Flux's own `envsubst` package, so nested defaults, `${var^^}`, `$${var}` and the rest behave as on the cluster. deadvalues only finds the placeholders, with their nesting, to keep what Flux would turn into an empty string: a variable with no value and no default stays as text, since it can come from the cluster. `envsubst` is pinned to the last release that accepts the Go version in `go.mod`.
-- **What stays outside.** `${var}` placeholders get the `postBuild` variables of the Flux `Kustomization` that applies the directory and the values in `.deadvalues.yaml`, and are otherwise left as text; `valuesFrom` sources not in the repository or SOPS-encrypted are not read: their `targetPath` gets a placeholder where the chart has no default, and a note says so; the Flux `Kustomization` objects in `clusters/<name>` are not followed, because some of their sources (`ExternalArtifact`) only exist in the cluster.
+- **What stays outside.** `${var}` placeholders get the `postBuild` variables of the Flux `Kustomization` that applies the directory and the values in `.deadvalues.yaml`, and are otherwise left as text; `valuesFrom` sources not in the repository or SOPS-encrypted are not read: their `targetPath` gets a placeholder where the chart has no default, and a note says so; a Flux `Kustomization` whose source is not this repository (`ExternalArtifact`, `OCIRepository`, another git repository) is not followed.
+- **The Flux graph.** `internal/flux/graph.go` does what the kustomize-controller does: from each cluster root it builds a `Kustomization` with its `spec`, reads the `Kustomization`s of the output, already patched and substituted by the parent, and goes on. That replaces guessing from directories: the same base gets one app per cluster, each with its variables, and an aggregating `kustomization.yaml` Flux never applies is not built. Roots are declared (`FluxInstance`, `flux-instance` values, `gotk-sync`) or inferred (orphans). "Not applied" is only claimed when the roots are declared and every build worked, because a false claim would hide an app; otherwise what the graph does not reach goes through the old directory path, so nothing gets worse.
 
 ---
 
@@ -234,7 +235,7 @@ deadvalues/
 │   ├── config/                  .deadvalues.yaml
 │   ├── source/                  charts: dir, tgz, HTTP repo, OCI, repo/name, cache
 │   ├── argo/                    Application and kustomize helmCharts → targets
-│   ├── flux/                    HelmRelease and its sources → targets; kustomize build
+│   ├── flux/                    HelmRelease and its sources → targets; kustomize build, Kustomization graph
 │   ├── values/                  merge, origins, line positions (yaml.v3)
 │   ├── render/                  Helm SDK client-only, capabilities
 │   ├── compare/                 flattening, noise mask, equality
@@ -317,7 +318,6 @@ Not supported yet:
 
 | Item | Today |
 |---|---|
-| Following Flux `Kustomization` objects from `clusters/<name>`, and variables a parent `Kustomization` injects into its children with `patches` | point `scan` at the app directories; the `postBuild` of the `Kustomization` that applies a directory is read, the rest goes in `flux.substitute` |
 | Flux `chart.spec.valuesFiles` (values files inside the chart package) | a note says those keys are not taken into account |
 | Argo CD `ApplicationSet` | not read; the kustomize directories with `helmCharts:` it points at are scanned on their own, named after their path |
 | Charts from another git repository (Argo CD and Flux) and Argo CD `$ref/` value files from another git repository | listed as not analyzed, with the reason |

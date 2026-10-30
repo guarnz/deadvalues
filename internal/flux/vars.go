@@ -101,13 +101,28 @@ func expand(expr string, vars map[string]string) string {
 // Vars returns the postBuild variables of a Flux Kustomization, with notes on
 // sources it could not read.
 func (ix *Index) Vars(ks *Object) (map[string]string, []string) {
+	return vars(ks, ix.Find)
+}
+
+// VarsIn reads the variables from the objects a cluster's builds output first, so each
+// cluster gets its own ConfigMap of the same name, then from the repository.
+func (ix *Index) VarsIn(ks *Object, scope *Index) (map[string]string, []string) {
+	return vars(ks, func(kind, name, namespace, near string) *Object {
+		if o := scope.Find(kind, name, namespace, near); o != nil {
+			return o
+		}
+		return ix.Find(kind, name, namespace, near)
+	})
+}
+
+func vars(ks *Object, find func(kind, name, namespace, near string) *Object) (map[string]string, []string) {
 	vars := map[string]string{}
 	var notes []string
 	if from := Get(ks.Node, "spec", "postBuild", "substituteFrom"); from != nil && from.Kind == yaml.SequenceNode {
 		for _, ref := range from.Content {
 			kind, name := Str(ref, "kind"), Str(ref, "name")
 			label := kind + " " + name
-			o := ix.Find(kind, name, ks.Namespace, ks.File)
+			o := find(kind, name, ks.Namespace, ks.File)
 			switch {
 			case o == nil && Str(ref, "optional") == "true":
 			case o == nil:
