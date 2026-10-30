@@ -519,3 +519,65 @@ func TestSubstitute(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestSubstituteFollowsFlux(t *testing.T) {
+	vars := map[string]string{"APP": "romm", "EMPTY": "", "PATH_VAR": "a/b/c"}
+	for in, want := range map[string]string{
+		"${APP}":                        "romm",
+		"${APP:=x}":                     "romm",
+		"${EMPTY:=x}":                   "x",
+		"${EMPTY:-x}":                   "x",
+		"${NOPE:-x}":                    "x",
+		"${NOPE-x}":                     "${NOPE-x}",
+		"${NOPE:=}":                     "",
+		"${USERNAME:=${APP}}":           "romm",
+		`${DATABASES:=["${APP}"]}`:      `["romm"]`,
+		"${NOPE:=${ALSO_NOPE}}":         "${ALSO_NOPE}",
+		"${APP^^}_KEY":                  "ROMM_KEY",
+		"${APP^}":                       "Romm",
+		"${#APP}":                       "4",
+		"${APP:1:2}":                    "om",
+		"${PATH_VAR//\\//-}":            "a-b-c",
+		"${PATH_VAR%/*}":                "a/b",
+		"$${APP}":                       "${APP}",
+		"$${POD_NAME}.svc":              "${POD_NAME}.svc",
+		"$$(MAX_MEMORY)Mi":              "$(MAX_MEMORY)Mi",
+		"${NOPE}":                       "${NOPE}",
+		"${NOPE^^}":                     "${NOPE^^}",
+		"$(VAR) $VAR {{ $labels.pod }}": "$(VAR) $VAR {{ $labels.pod }}",
+		"${not closed":                  "${not closed",
+		"${1}":                          "${1}",
+	} {
+		if got := string(Substitute([]byte(in), vars)); got != want {
+			t.Errorf("Substitute(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestBuildLeavesOutWhatFluxDoesNotSubstitute(t *testing.T) {
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"kustomization.yaml": "resources: [plain.yaml, script.yaml]\n",
+		"plain.yaml":         "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: plain\ndata:\n  a: ${VAR:-fallback}\n",
+		"script.yaml":        "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: script\n  annotations:\n    kustomize.toolkit.fluxcd.io/substitute: disabled\ndata:\n  a: ${VAR:-fallback}\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := Build(dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objs, err := ParseYAML(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, o := range objs {
+		got[o.Name] = Str(o.Node, "data", "a")
+	}
+	if got["plain"] != "fallback" || got["script"] != "${VAR:-fallback}" {
+		t.Errorf("got %v", got)
+	}
+}

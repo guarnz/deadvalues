@@ -247,7 +247,7 @@ func Build(dir string, vars map[string]string, components ...string) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	return Substitute(out, vars), nil
+	return substituteBuild(out, vars), nil
 }
 
 // withComponents reads dir's kustomization with extra components, as Flux does
