@@ -1,11 +1,102 @@
 package flux
 
 import (
+	"bytes"
 	"os"
+	"regexp"
 	"strings"
 
+	"github.com/fluxcd/pkg/envsubst"
 	"go.yaml.in/yaml/v3"
 )
+
+const substituteDisabled = "kustomize.toolkit.fluxcd.io/substitute: disabled"
+
+// varExpr reads the variable of a ${...} and whether it brings its own fallback.
+var varExpr = regexp.MustCompile(`^\$\{#?([A-Za-z_][A-Za-z0-9_]*)(:?[=+?-])?`)
+
+// Substitute expands ${...} with Flux's own envsubst, where $$ escapes a dollar. Unknown
+// variables without a fallback stay as text, since their value can come from the cluster.
+func Substitute(data []byte, vars map[string]string) []byte {
+	if !bytes.Contains(data, []byte("$")) {
+		return data
+	}
+	var out bytes.Buffer
+	for i := 0; i < len(data); {
+		end := exprEnd(data, i)
+		switch {
+		case bytes.HasPrefix(data[i:], []byte("$$")):
+			out.WriteByte('$')
+			i += 2
+		case end > 0:
+			out.WriteString(expand(string(data[i:end]), vars))
+			i = end
+		default:
+			out.WriteByte(data[i])
+			i++
+		}
+	}
+	return out.Bytes()
+}
+
+// substituteBuild applies Substitute to a build output, leaving out the objects
+// that Flux leaves out with the substitute: disabled annotation or label.
+func substituteBuild(out []byte, vars map[string]string) []byte {
+	sep := []byte("\n---\n")
+	docs := bytes.Split(out, sep)
+	for i, doc := range docs {
+		if !bytes.Contains(doc, []byte(substituteDisabled)) {
+			docs[i] = Substitute(doc, vars)
+		}
+	}
+	return bytes.Join(docs, sep)
+}
+
+// exprEnd returns where the ${...} starting at i ends, with the ones nested in it,
+// or 0 when there is none on that line.
+func exprEnd(data []byte, i int) int {
+	if !bytes.HasPrefix(data[i:], []byte("${")) {
+		return 0
+	}
+	depth := 0
+	for j := i; j < len(data); j++ {
+		switch {
+		case data[j] == '\n':
+			return 0
+		case bytes.HasPrefix(data[j:], []byte("${")):
+			depth++
+			j++
+		case data[j] == '}':
+			if depth--; depth == 0 {
+				return j + 1
+			}
+		}
+	}
+	return 0
+}
+
+func expand(expr string, vars map[string]string) string {
+	m := varExpr.FindStringSubmatch(expr)
+	if m == nil {
+		return expr
+	}
+	if _, known := vars[m[1]]; !known && m[2] == "" {
+		return expr
+	}
+	out, err := envsubst.Eval(expr, func(name string) (string, bool) {
+		if v, ok := vars[name]; ok {
+			return v, true
+		}
+		if name == m[1] {
+			return "", false
+		}
+		return "${" + name + "}", true
+	})
+	if err != nil {
+		return expr
+	}
+	return out
+}
 
 // Vars returns the postBuild variables of a Flux Kustomization, with notes on
 // sources it could not read.

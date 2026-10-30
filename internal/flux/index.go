@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -232,21 +231,4 @@ func Str(n *yaml.Node, path ...string) string {
 		return ""
 	}
 	return v.Value
-}
-
-var varRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::=([^}]*))?\}`)
-
-// Substitute applies Flux postBuild-style ${var} and ${var:=default}
-// substitution. Unknown variables without a default are left as they are.
-func Substitute(data []byte, vars map[string]string) []byte {
-	return varRef.ReplaceAllFunc(data, func(m []byte) []byte {
-		sub := varRef.FindSubmatch(m)
-		if v, ok := vars[string(sub[1])]; ok {
-			return []byte(v)
-		}
-		if bytes.Contains(m, []byte(":=")) {
-			return sub[2]
-		}
-		return m
-	})
 }

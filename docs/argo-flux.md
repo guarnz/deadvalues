@@ -97,6 +97,8 @@ staging:podinfo/podinfo     podinfo 6.15.0      0      0          0      7
 
 `${var}` placeholders get the `postBuild` variables of the Flux `Kustomization` that applies the directory, as on the cluster: `substituteFrom` ConfigMaps and Secrets found in the repository, then `substitute` on top. A source that is not in the repository, or is SOPS-encrypted, is reported as a note and its variables stay as `${var}` text; an `optional` one is skipped.
 
+The syntax is the one Flux uses, through its own `envsubst` package: defaults (`${var:=x}`, `${var:-x}`, also nested, as in `${user:=${app}}`), case (`${var^^}`, `${var,,}`), substrings, replacements and `$${var}` for a literal `${var}`. Objects with `kustomize.toolkit.fluxcd.io/substitute: disabled` are left as they are. The one difference is on purpose: a variable with no value and no default stays as text instead of becoming empty, since its value can come from the cluster.
+
 Values in `.deadvalues.yaml` win over both, and cover variables a parent `Kustomization` injects into its children with `patches`, which are not followed:
 
 ```yaml
