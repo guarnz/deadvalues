@@ -362,6 +362,8 @@ func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string,
 		}
 	}
 
+	g.crds = newCRDSearch(s.headRoot)
+	defer func() { g.crds.report(g.stderr) }()
 	var reports []*report.Diff
 	for _, f := range failed {
 		if oldFailed[failureKey(f, s.headRoot)] {

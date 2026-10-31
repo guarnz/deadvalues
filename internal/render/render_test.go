@@ -58,6 +58,27 @@ metadata:
 	}
 }
 
+func TestChartCRDs(t *testing.T) {
+	c := &chart.Chart{
+		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
+		Files:    []*common.File{{Name: "crds/widget.yaml", Data: []byte("kind: CustomResourceDefinition\n")}, {Name: "README.md"}},
+		Templates: []*common.File{
+			{Name: "templates/crd.yaml", Data: []byte("{{- if .Values.crds.enabled }}\nkind: CustomResourceDefinition\nspec:\n  group: example.com\n{{- end }}\n")},
+			{Name: "templates/other.yaml", Data: []byte("kind: ConfigMap\ndata: {group: other.io}\n")},
+		},
+	}
+	r, err := New(c, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := r.CRDFiles(); len(got) != 1 {
+		t.Errorf("CRDFiles() = %d files, want the crds/ one", len(got))
+	}
+	if !r.DeclaresCRD("example.com") || r.DeclaresCRD("other.io") {
+		t.Error("DeclaresCRD should need CustomResourceDefinition and the group in the same template")
+	}
+}
+
 func TestWithGroupVersions(t *testing.T) {
 	got := withGroupVersions([]string{"monitoring.coreos.com/v1/ServiceMonitor", "v1/Service", "apps/v1", "cert-manager.io/v1"})
 	want := []string{"monitoring.coreos.com/v1/ServiceMonitor", "v1/Service", "apps/v1", "cert-manager.io/v1", "monitoring.coreos.com/v1", "v1"}

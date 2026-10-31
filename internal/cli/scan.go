@@ -89,6 +89,7 @@ reported as ERROR in the summary.`,
 					others = append(others, j)
 				}
 			}
+			g.crds = newCRDSearch(root)
 			for _, j := range picked {
 				reports = append(reports, g.check(cmd.Context(), j))
 			}
@@ -97,6 +98,7 @@ reported as ERROR in the summary.`,
 				neighbours = append(neighbours, g.check(cmd.Context(), j))
 			}
 
+			g.crds.report(g.stderr)
 			if len(reports) == 0 {
 				if changed != nil && len(jobs) > 0 {
 					fmt.Fprintln(g.stderr, "no app changed since "+changedSince)

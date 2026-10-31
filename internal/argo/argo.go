@@ -23,6 +23,8 @@ type Application struct {
 	Namespace string
 	Project   string
 	Sources   []Source
+	// Destination is the cluster the Application deploys to: its server or name.
+	Destination string
 }
 
 type Source struct {
@@ -70,6 +72,8 @@ type manifest struct {
 		Sources     []Source `json:"sources"`
 		Destination struct {
 			Namespace string `json:"namespace"`
+			Server    string `json:"server"`
+			Name      string `json:"name"`
 		} `json:"destination"`
 	} `json:"spec"`
 }
@@ -132,6 +136,10 @@ func Parse(data []byte) ([]*Application, error) {
 			continue
 		}
 		app := &Application{Name: m.Metadata.Name, Namespace: m.Spec.Destination.Namespace, Project: m.Spec.Project}
+		app.Destination = m.Spec.Destination.Server + m.Spec.Destination.Name
+		if strings.Contains(app.Destination, "kubernetes.default.svc") {
+			app.Destination = "in-cluster"
+		}
 		if m.Spec.Source != nil {
 			app.Sources = append(app.Sources, *m.Spec.Source)
 		}

@@ -136,6 +136,28 @@ spec:
 	}
 }
 
+func TestDestinationNamesTheCluster(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "apps.yaml")
+	app := func(destination string) string {
+		return "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: a}\nspec:\n  source: {repoURL: https://x, chart: c, targetRevision: 1.0.0}\n  destination: " + destination + "\n"
+	}
+	content := app("{server: https://kubernetes.default.svc}") + "---\n" + app("{name: in-cluster}") + "---\n" + app("{server: https://edge.example.com:6443}")
+	if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	apps, err := Load(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, a := range apps {
+		got = append(got, a.Destination)
+	}
+	if want := []string{"in-cluster", "in-cluster", "https://edge.example.com:6443"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("destinations = %v, want %v", got, want)
+	}
+}
+
 func TestHelmNamespaceOverridesDestination(t *testing.T) {
 	app := func(helm string) string {
 		return `apiVersion: argoproj.io/v1alpha1

@@ -122,6 +122,7 @@ type build struct {
 	vars                    map[string]string
 	varNotes                []string
 	namespace, label, where string
+	cluster                 string
 }
 
 // buildJobs reads the HelmReleases of a build output; keep, when set, picks them by file.
@@ -160,6 +161,7 @@ func (g *globals) buildJobs(objs []*flux.Object, root string, b build, filter *a
 			continue
 		}
 		j.notes = append(append([]string{}, j.notes...), b.varNotes...)
+		j.cluster = b.cluster
 		jobs = append(jobs, j)
 	}
 	return jobs, failed
@@ -226,7 +228,7 @@ func (g *globals) graphJobs(dir, root string, filter *appFilter) ([]job, []*repo
 		}
 		label = strings.TrimPrefix(label, a.Cluster+"/")
 		b := build{dir: a.Dir, spec: a.Spec, vars: a.Vars, varNotes: a.VarNotes, namespace: a.Spec.Namespace,
-			label: prefixed(a.Cluster, label), where: prefixed(a.Cluster, relPath(root, a.Dir))}
+			label: prefixed(a.Cluster, label), where: prefixed(a.Cluster, relPath(root, a.Dir)), cluster: "flux|" + a.Cluster}
 		js, fails := g.buildJobs(a.Objects, root, b, filter, func(file string) bool {
 			return file != "" && underDir(dir, file)
 		})
