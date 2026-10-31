@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -540,6 +541,15 @@ spec:
 	}
 }
 
+func runCLISplit(t *testing.T, args ...string) (string, string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	cfg := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, cfg, "{}\n")
+	runIO(BuildInfo{Version: "test"}, append(args, "--config", cfg, "--cache-dir", t.TempDir()), &stdout, &stderr)
+	return stdout.String(), stderr.String()
+}
+
 func diffStderr(t *testing.T, args ...string) string {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
@@ -706,4 +716,108 @@ spec:
 	if !found {
 		t.Errorf("the staging overlay reads only the base production also reads; it must be reported, not lost:\n%s", out)
 	}
+}
+
+func TestChangedSinceComparesWhatAppsAreAnalyzedWith(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	srv := helmRepo(t)
+	root := t.TempDir()
+	app := func(name string) string {
+		return `apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ` + name + `
+  namespace: web
+spec:
+  chartRef:
+    kind: HelmChart
+    name: ` + name + `
+    namespace: web
+  values:
+    name: app
+    labels:
+      team: ${TEAM}
+`
+	}
+	chart := func(name, version string) string {
+		return `apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: ` + name + `
+  namespace: web
+spec:
+  chart: cases
+  version: ` + version + `
+  sourceRef:
+    kind: HelmRepository
+    name: charts
+`
+	}
+	ks := func(name, comment string) string {
+		return comment + `apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ` + name + `
+  namespace: flux-system
+spec:
+  path: ./apps/` + name + `
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: settings-` + name + `
+`
+	}
+	settings := func(name, team string) string {
+		return "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: settings-" + name + "\n  namespace: flux-system\ndata:\n  TEAM: " + team + "\n"
+	}
+	writeFile(t, filepath.Join(root, "apps", "source.yaml"), "apiVersion: source.toolkit.fluxcd.io/v1\nkind: HelmRepository\nmetadata:\n  name: charts\n  namespace: web\nspec:\n  url: "+srv.URL+"\n")
+	writeFile(t, filepath.Join(root, "clusters", "main", "kustomization.yaml"), "resources: [flux-system, one.yaml, two.yaml, settings-one.yaml, settings-two.yaml]\n")
+	writeFile(t, filepath.Join(root, "clusters", "main", "flux-system", "kustomization.yaml"), "resources: [gotk-sync.yaml]\n")
+	writeFile(t, filepath.Join(root, "clusters", "main", "flux-system", "gotk-sync.yaml"), `apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  path: ./clusters/main
+`)
+	for _, name := range []string{"one", "two"} {
+		writeFile(t, filepath.Join(root, "apps", name, "kustomization.yaml"), "resources: [release.yaml, helmchart.yaml]\n")
+		writeFile(t, filepath.Join(root, "apps", name, "release.yaml"), app(name))
+		writeFile(t, filepath.Join(root, "apps", name, "helmchart.yaml"), chart(name, "0.1.0"))
+		writeFile(t, filepath.Join(root, "clusters", "main", name+".yaml"), ks(name, ""))
+		writeFile(t, filepath.Join(root, "clusters", "main", "settings-"+name+".yaml"), settings(name, "core"))
+	}
+	git := gitIn(t, root)
+	git("init", "-q", "-b", "main")
+	git("add", "-A")
+	git("commit", "-qm", "base")
+
+	scanned := func(step string, want ...string) {
+		t.Helper()
+		out, stderr := runCLISplit(t, "scan", filepath.Join(root, "apps"), "--changed-since", "main", "--repo-root", root, "-o", "json", "--fail-on", "none")
+		var got []string
+		for _, c := range decodeChecks(t, out) {
+			got = append(got, strings.TrimPrefix(c.App, "apps/"))
+		}
+		sort.Strings(got)
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("%s: apps = %v, want %v\n%s", step, got, want, stderr)
+		}
+		if len(want) == 0 && !strings.Contains(stderr, "no app changed since main") {
+			t.Errorf("%s: stderr = %q", step, stderr)
+		}
+	}
+	scanned("nothing changed")
+
+	writeFile(t, filepath.Join(root, "clusters", "main", "one.yaml"), ks("one", "# a comment\n"))
+	scanned("a comment in a parent does not change what an app is analyzed with")
+
+	writeFile(t, filepath.Join(root, "apps", "one", "helmchart.yaml"), chart("one", "0.2.0"))
+	scanned("a version in another file", "one:web/one")
+
+	writeFile(t, filepath.Join(root, "clusters", "main", "settings-two.yaml"), settings("two", "platform"))
+	scanned("a variable from a ConfigMap", "one:web/one", "two:web/two")
 }

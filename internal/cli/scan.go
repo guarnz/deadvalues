@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"sort"
@@ -70,6 +71,10 @@ reported as ERROR in the summary.`,
 			if err != nil {
 				return &exitError{code: 2, err: err}
 			}
+			var base map[string]job
+			if changed != nil {
+				base = g.baseJobs(dir, root, changedSince, newAppFilter(only, skip))
+			}
 			var reports []*report.Check
 			for _, c := range failed {
 				if changed == nil || touches(c.AppFile, changed) {
@@ -78,7 +83,7 @@ reported as ERROR in the summary.`,
 			}
 			var picked, others []job
 			for _, j := range jobs {
-				if changed == nil || affected(j.appFile, []job{j}, changed) {
+				if changed == nil || affected(j.appFile, []job{j}, changed) || inputChanged(j, base) {
 					picked = append(picked, j)
 				} else {
 					others = append(others, j)
@@ -93,7 +98,11 @@ reported as ERROR in the summary.`,
 			}
 
 			if len(reports) == 0 {
-				fmt.Fprintln(g.stderr, "no Argo CD Applications or Flux HelmReleases with Helm charts to scan")
+				if changed != nil && len(jobs) > 0 {
+					fmt.Fprintln(g.stderr, "no app changed since "+changedSince)
+				} else {
+					fmt.Fprintln(g.stderr, "no Argo CD Applications or Flux HelmReleases with Helm charts to scan")
+				}
 				if g.output == "table" && len(g.outputs) == 0 {
 					return nil
 				}
@@ -161,6 +170,41 @@ func affected(appFile string, jobs []job, changed map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+// baseJobs returns the targets as they were where the branch left rev, by ident. It is
+// nil when that tree cannot be read, and then only the changed files select apps.
+func (g *globals) baseJobs(dir, root, rev string, filter *appFilter) map[string]job {
+	s, err := g.gitSides(root, argo.MergeBase(root, rev), "")
+	if err != nil {
+		return nil
+	}
+	defer s.close()
+	baseDir := s.inBase(dir)
+	if !dirExists(baseDir) {
+		return nil
+	}
+	jobs, _, err := g.dirJobs(baseDir, s.baseRoot, filter.in(s.inBase))
+	if err != nil {
+		return nil
+	}
+	return byIdent(jobs)
+}
+
+// inputChanged reports whether what an app is analyzed with differs from the base,
+// wherever that came from: an OCIRepository file, a variable, a parent's patch.
+func inputChanged(j job, base map[string]job) bool {
+	if base == nil || j.skip != "" {
+		return false
+	}
+	o, ok := base[j.ident]
+	if !ok || o.skip != "" {
+		return true
+	}
+	if !j.ref.IsLocal() && j.ref != o.ref {
+		return true
+	}
+	return j.release != o.release || j.namespace != o.namespace || !reflect.DeepEqual(j.vals.Values, o.vals.Values)
 }
 
 // touches reports whether a changed file is path or lies under it; a target that

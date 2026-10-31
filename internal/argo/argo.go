@@ -308,13 +308,18 @@ func RepoRoot(path string) string {
 	return filepath.FromSlash(strings.TrimSpace(string(out)))
 }
 
+// MergeBase returns the point where HEAD left rev, or rev when it cannot be found.
+func MergeBase(repoRoot, rev string) string {
+	if out, err := git.Command(repoRoot, "merge-base", rev, "HEAD").Output(); err == nil {
+		return strings.TrimSpace(string(out))
+	}
+	return rev
+}
+
 // ChangedFiles lists files changed in the working tree since it left rev
 // (their merge base, or rev itself in a shallow clone), as absolute paths.
 func ChangedFiles(repoRoot, rev string) (map[string]bool, error) {
-	from := rev
-	if out, err := git.Command(repoRoot, "merge-base", rev, "HEAD").Output(); err == nil {
-		from = strings.TrimSpace(string(out))
-	}
+	from := MergeBase(repoRoot, rev)
 	var stderr bytes.Buffer
 	cmd := git.Command(repoRoot, "diff", "--name-only", from)
 	cmd.Stderr = &stderr

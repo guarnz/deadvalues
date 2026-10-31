@@ -50,7 +50,7 @@ Both sides are extracted with `git archive`, so your working tree is never touch
 
 A ref that does not exist locally is looked up on `origin` (`--head renovate/example` finds `origin/renovate/example`); other remotes need the full name. In a fork, where `origin` is your copy, pass the real base explicitly, e.g. `--base upstream/main`.
 
-`scan --changed-since <ref>` compares with the point where the branch left `<ref>` (their merge base), as a pull request does, so changes that reached `<ref>` after the branch started are not counted.
+`scan --changed-since <ref>` compares with the point where the branch left `<ref>` (their merge base), as a pull request does, so changes that reached `<ref>` after the branch started are not counted. An app is picked when one of its files changed, or when what it is analyzed with differs from that point: chart version, final values, release name or namespace. A version in a separate `OCIRepository` file or a variable from a parent `Kustomization` picks the apps it reaches, and a comment in that file picks none. If that point cannot be read, only the changed files select apps.
 
 An app that fails to load (its chart source is not found, or its kustomize overlay does not build) is reported by `scan --changed-since` only when a change touches its file or overlay, and by `diff --base` only when the change causes the error, not when it was already there at the base. A full `scan` reports every one of them.
 
