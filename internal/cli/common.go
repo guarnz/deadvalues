@@ -61,8 +61,9 @@ type job struct {
 	// only restricts findings to keys set in these values files (normalized
 	// paths), when the user asked about specific files with -f alone.
 	only map[string]bool
-	// skip is why the target is reported without being analyzed.
-	skip string
+	// skip is why the target is reported without being analyzed, and skipKind its report kind.
+	skip     string
+	skipKind string
 	// watch are more files whose change touches the target, such as kustomization files.
 	watch []string
 	// cluster groups the targets deployed together, for the CRDs they can use; empty when unknown.
@@ -264,7 +265,7 @@ func (g *globals) ignorer(app string) func([]string) bool {
 
 func (g *globals) check(ctx context.Context, j job) *report.Check {
 	if j.skip != "" {
-		c := report.NotAnalyzed(j.name, j.skip)
+		c := report.NotAnalyzed(j.name, j.skip, j.skipKind)
 		c.AppFile = j.appFile
 		return c
 	}

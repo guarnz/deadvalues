@@ -39,7 +39,7 @@ func (w *Writer) checkAnnotations(cs []*Check) []annotation {
 		}
 		if c.Skipped != "" {
 			f, _ := w.firstFile(nil, c.AppFile)
-			out = append(out, annotation{rule: "not-analyzed", level: "note", title: "deadvalues: " + c.App, message: "not analyzed: " + c.Skipped, file: f})
+			out = append(out, annotation{rule: "not-analyzed", level: "note", title: "deadvalues: " + c.App, message: c.SkipLabel() + ": " + c.Skipped, file: f})
 			continue
 		}
 		for _, k := range c.Keys {

@@ -14,7 +14,7 @@ func (w *Writer) checksMarkdown(cs []*Check, scan bool) {
 				continue
 			}
 			if c.Skipped != "" {
-				fmt.Fprintf(w.Out, "| `%s` | _Not analyzed:_ %s | | | | |\n", c.App, mdEscape(c.Skipped))
+				fmt.Fprintf(w.Out, "| `%s` | _%s:_ %s | | | | |\n", c.App, sentence(c.SkipLabel()), mdEscape(c.Skipped))
 				continue
 			}
 			if len(c.Values) == 0 {
@@ -39,7 +39,7 @@ func (w *Writer) checksMarkdown(cs []*Check, scan bool) {
 			continue
 		}
 		if c.Skipped != "" {
-			fmt.Fprintf(w.Out, "> **Not analyzed:** %s\n\n", mdEscape(c.Skipped))
+			fmt.Fprintf(w.Out, "> **%s:** %s\n\n", sentence(c.SkipLabel()), mdEscape(c.Skipped))
 			continue
 		}
 		if len(c.Values) == 0 {
@@ -98,6 +98,11 @@ func (w *Writer) diffsMarkdown(ds []*Diff) {
 		fmt.Fprintf(w.Out, "\n**%d breaking, %d pinned, %d changed, %d fixed**\n\n",
 			d.Counts["BREAKING"], d.Counts["PINNED"], d.Counts["CHANGED"], d.Counts["FIXED"])
 	}
+}
+
+// sentence starts a lower-case label with a capital letter.
+func sentence(s string) string {
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func mdEscape(s string) string {
