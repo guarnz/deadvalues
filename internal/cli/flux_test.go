@@ -784,9 +784,9 @@ spec:
   path: ./clusters/main
 `)
 	for _, name := range []string{"one", "two"} {
-		writeFile(t, filepath.Join(root, "apps", name, "kustomization.yaml"), "resources: [release.yaml, chart.yaml]\n")
+		writeFile(t, filepath.Join(root, "apps", name, "kustomization.yaml"), "resources: [release.yaml, helmchart.yaml]\n")
 		writeFile(t, filepath.Join(root, "apps", name, "release.yaml"), app(name))
-		writeFile(t, filepath.Join(root, "apps", name, "chart.yaml"), chart(name, "0.1.0"))
+		writeFile(t, filepath.Join(root, "apps", name, "helmchart.yaml"), chart(name, "0.1.0"))
 		writeFile(t, filepath.Join(root, "clusters", "main", name+".yaml"), ks(name, ""))
 		writeFile(t, filepath.Join(root, "clusters", "main", "settings-"+name+".yaml"), settings(name, "core"))
 	}
@@ -815,7 +815,7 @@ spec:
 	writeFile(t, filepath.Join(root, "clusters", "main", "one.yaml"), ks("one", "# a comment\n"))
 	scanned("a comment in a parent does not change what an app is analyzed with")
 
-	writeFile(t, filepath.Join(root, "apps", "one", "chart.yaml"), chart("one", "0.2.0"))
+	writeFile(t, filepath.Join(root, "apps", "one", "helmchart.yaml"), chart("one", "0.2.0"))
 	scanned("a version in another file", "one:web/one")
 
 	writeFile(t, filepath.Join(root, "clusters", "main", "settings-two.yaml"), settings("two", "platform"))
