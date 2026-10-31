@@ -2,12 +2,30 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/guarnz/deadvalues/internal/argo"
 	"github.com/guarnz/deadvalues/internal/report"
 	"github.com/guarnz/deadvalues/internal/values"
 )
+
+func appCluster(app *argo.Application) string {
+	if app.Destination == "" {
+		return ""
+	}
+	return "argo|" + app.Destination
+}
+
+func appPaths(app *argo.Application, root string) []string {
+	var out []string
+	for _, s := range app.Sources {
+		if s.Path != "" {
+			out = append(out, filepath.Join(root, filepath.FromSlash(s.Path)))
+		}
+	}
+	return out
+}
 
 // kustomizeJobs analyzes the helmCharts of a kustomize directory that no Application
 // points at, named after its path, as an ApplicationSet or plain kustomize renders it.
@@ -85,6 +103,8 @@ func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([
 			appFile:     app.File,
 			ident:       "argo:" + tg.Name,
 			sourceIndex: tg.SourceIndex,
+			cluster:     appCluster(app),
+			paths:       appPaths(app, root),
 			ref:         tg.Chart,
 			release:     tg.Release,
 			namespace:   tg.Namespace,

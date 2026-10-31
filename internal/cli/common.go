@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -64,6 +65,10 @@ type job struct {
 	skip string
 	// watch are more files whose change touches the target, such as kustomization files.
 	watch []string
+	// cluster groups the targets deployed together, for the CRDs they can use; empty when unknown.
+	cluster string
+	// paths are the directories an Application deploys, where its plain CRDs live.
+	paths []string
 	// kubeVersion and apiVersions are the app's own, as an Argo CD source can set them.
 	kubeVersion string
 	apiVersions []string
@@ -166,6 +171,11 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 	if err != nil {
 		return nil, err
 	}
+	withoutAPIs := r
+	apis := g.repoAPIs(ctx, j, r.MissingAPIVersions())
+	if len(apis) > 0 {
+		r = r.WithAPIVersions(apis)
+	}
 	defaults, err := r.Defaults()
 	if err != nil {
 		return nil, err
@@ -189,6 +199,9 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 		}
 		return nil, fmt.Errorf("%s: baseline render failed: %w", r.Label(), err)
 	}
+	if len(apis) > 0 {
+		keepBootstrapKeys(withoutAPIs, j.vals.Values, res)
+	}
 	a := &analysis{renderer: r, defaults: defaults, result: res, took: time.Since(start)}
 
 	dead, needsAPI := false, false
@@ -207,6 +220,34 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 		a.notes = append(a.notes, "the chart uses lookup, which is empty offline; keys read only through it can look dead")
 	}
 	return a, nil
+}
+
+// keepBootstrapKeys revives dead keys that matter while a CRD is not there yet, such as
+// cilium's trustCRDsExist on a first install: they are idle on a running cluster, not dead.
+func keepBootstrapKeys(r *render.Renderer, vals map[string]interface{}, res *probe.Result) {
+	if !slices.ContainsFunc(res.Findings, func(f probe.Finding) bool { return f.Status == probe.Dead }) {
+		return
+	}
+	withoutAPIs := renderFunc(r)
+	base, err := withoutAPIs(values.CopyMap(vals))
+	if err != nil {
+		return
+	}
+	again, err := withoutAPIs(values.CopyMap(vals))
+	if err != nil {
+		return
+	}
+	noise := compare.Noise(base, again)
+	for i, f := range res.Findings {
+		if f.Status != probe.Dead {
+			continue
+		}
+		mutated := values.CopyMap(vals)
+		values.Delete(mutated, f.Path)
+		if snap, err := withoutAPIs(mutated); err != nil || !compare.Equal(base, snap, noise) {
+			res.Findings[i].Status = probe.Alive
+		}
+	}
 }
 
 func displayPaths(paths [][]string) string {

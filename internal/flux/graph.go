@@ -418,3 +418,19 @@ func topLabels(repoRoot string, roots []graphRoot) []string {
 	}
 	return labels
 }
+
+// CRDAPIs lists what a CustomResourceDefinition serves, as group/version and group/version/Kind.
+func CRDAPIs(crd *Object) []string {
+	group, kind := Str(crd.Node, "spec", "group"), Str(crd.Node, "spec", "names", "kind")
+	versions := Get(crd.Node, "spec", "versions")
+	if group == "" || versions == nil {
+		return nil
+	}
+	var out []string
+	for _, v := range versions.Content {
+		if name := Str(v, "name"); name != "" && Str(v, "served") != "false" {
+			out = append(out, group+"/"+name, group+"/"+name+"/"+kind)
+		}
+	}
+	return out
+}

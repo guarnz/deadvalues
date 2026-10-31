@@ -101,6 +101,7 @@ type globals struct {
 	stderr     io.Writer
 	fluxIndex  map[string]*flux.Index
 	fluxGraphs map[string]*flux.Graph
+	crds       *crdSearch
 }
 
 func newRoot(info BuildInfo, stdout, stderr io.Writer) *cobra.Command {

@@ -3,8 +3,10 @@
 package render
 
 import (
+	"bytes"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -241,6 +243,29 @@ var (
 
 // MissingAPIVersions lists the APIs the chart checks for that the capabilities lack and still exist;
 // when a check takes its API from a variable, every API quoted in the templates is a candidate.
+// CRDFiles returns the crds/ files of the chart and its subcharts.
+func (r *Renderer) CRDFiles() [][]byte {
+	var out [][]byte
+	for _, f := range r.chart.CRDs() {
+		out = append(out, f.Data)
+	}
+	return out
+}
+
+// DeclaresCRD reports whether a template of the chart or a subchart may render a CRD of group.
+func (r *Renderer) DeclaresCRD(group string) bool {
+	var walk func(c *chart.Chart) bool
+	walk = func(c *chart.Chart) bool {
+		for _, t := range c.Templates {
+			if bytes.Contains(t.Data, []byte("CustomResourceDefinition")) && bytes.Contains(t.Data, []byte(group)) {
+				return true
+			}
+		}
+		return slices.ContainsFunc(c.Dependencies(), walk)
+	}
+	return walk(r.chart)
+}
+
 func (r *Renderer) MissingAPIVersions() []string {
 	var files [][]byte
 	var walk func(c *chart.Chart)
