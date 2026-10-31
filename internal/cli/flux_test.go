@@ -633,3 +633,77 @@ spec:
 		t.Errorf("a component is only built through what includes it, got apps %+v", apps)
 	}
 }
+
+func TestScanFollowsTheFluxGraph(t *testing.T) {
+	root := fluxFixture(t)
+	cluster := func(name, apps string) {
+		dir := filepath.Join(root, "clusters", name)
+		writeFile(t, filepath.Join(dir, "flux-system", "kustomization.yaml"), "resources: [gotk-sync.yaml]\n")
+		writeFile(t, filepath.Join(dir, "flux-system", "gotk-sync.yaml"), `apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  path: ./clusters/`+name+`
+`)
+		writeFile(t, filepath.Join(dir, "apps.yaml"), `apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  path: ./apps/`+apps+`
+  targetNamespace: shop-`+name+`
+`)
+	}
+	cluster("eu", "production")
+	cluster("us", "production")
+
+	out, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
+	got := map[string]anyCheck{}
+	for _, c := range decodeChecks(t, out) {
+		got[c.App] = c
+	}
+	for _, app := range []string{"eu:production:shop-eu/demo", "us:production:shop-us/demo"} {
+		if c, ok := got[app]; !ok || c.Error != "" || c.Skipped != "" {
+			t.Errorf("%s: want it analyzed once per cluster, got %+v in %v", app, c, got)
+		}
+	}
+	if c := got["staging:demo"]; !strings.Contains(c.Skipped, "not applied") || !strings.Contains(c.Skipped, "apps/staging") {
+		t.Errorf("no Kustomization applies the staging overlay, got skipped %q in %v", c.Skipped, got)
+	}
+}
+
+func TestScanKeepsOverlaysThatOnlyShareABase(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, "../../testdata/flux", root)
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	writeFile(t, filepath.Join(root, "apps", "staging", "kustomization.yaml"), "resources:\n  - ../base/demo\n")
+	writeFile(t, filepath.Join(root, "apps", "production", "kustomization.yaml"), "resources:\n  - ../base/demo\n")
+	writeFile(t, filepath.Join(root, "clusters", "main", "flux-system", "gotk-sync.yaml"), `apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-system
+  namespace: flux-system
+spec:
+  path: ./clusters/main
+`)
+	writeFile(t, filepath.Join(root, "clusters", "main", "flux-system", "kustomization.yaml"), "resources: [gotk-sync.yaml]\n")
+	writeFile(t, filepath.Join(root, "clusters", "main", "apps.yaml"), `apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  path: ./apps/production
+`)
+	out, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
+	found := false
+	for _, c := range decodeChecks(t, out) {
+		found = found || strings.HasPrefix(c.App, "staging:") && strings.Contains(c.Skipped, "not applied")
+	}
+	if !found {
+		t.Errorf("the staging overlay reads only the base production also reads; it must be reported, not lost:\n%s", out)
+	}
+}

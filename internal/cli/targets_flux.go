@@ -3,10 +3,13 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/guarnz/deadvalues/internal/flux"
 	"github.com/guarnz/deadvalues/internal/git"
 	"github.com/guarnz/deadvalues/internal/report"
+	"github.com/guarnz/deadvalues/internal/values"
 )
 
 func (g *globals) hasRelease(file string) bool {
@@ -99,8 +102,8 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 	}
 	name := relPath(root, dir)
 	vars, varNotes := g.fluxVars(root, dir)
-	components := g.fluxComponents(root, dir)
-	out, err := flux.Build(dir, vars, components...)
+	spec := flux.Spec{Components: g.fluxComponents(root, dir)}
+	out, err := flux.Build(dir, vars, spec.Components...)
 	if err != nil {
 		return nil, []*report.Check{failedAt(name, dir, fmt.Errorf("kustomize build: %w", err))}
 	}
@@ -108,13 +111,28 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 	if err != nil {
 		return nil, []*report.Check{failedAt(name, dir, err)}
 	}
-	attr := flux.NewAttributor(flux.Tree(dir, components...), vars)
+	b := build{dir: dir, spec: spec, vars: vars, varNotes: varNotes, namespace: g.fluxTargetNamespace(root, dir), label: label, where: relPath(root, dir)}
+	return g.buildJobs(objs, root, b, filter, nil)
+}
+
+// build is a kustomize build of a Flux path and what its HelmReleases are read with.
+type build struct {
+	dir                     string
+	spec                    flux.Spec
+	vars                    map[string]string
+	varNotes                []string
+	namespace, label, where string
+}
+
+// buildJobs reads the HelmReleases of a build output; keep, when set, picks them by file.
+func (g *globals) buildJobs(objs []*flux.Object, root string, b build, filter *appFilter, keep func(file string) bool) ([]job, []*report.Check) {
+	attr := flux.NewAttributor(flux.Tree(b.dir, b.spec.Components...), b.vars)
 	res := &flux.Resolver{
 		RepoRoot:  root,
-		Sources:   &flux.Index{Objects: append(append([]*flux.Object{}, flux.TreeGenerators(dir, components...)...), objs...)},
+		Sources:   &flux.Index{Objects: append(append([]*flux.Object{}, flux.TreeGenerators(b.dir, b.spec.Components...)...), objs...)},
 		Fallback:  g.repoIndex(root),
 		Attribute: attr.Origins,
-		Namespace: g.fluxTargetNamespace(root, dir),
+		Namespace: b.namespace,
 		Origin:    git.Origin(root),
 	}
 
@@ -124,23 +142,132 @@ func (g *globals) fluxBuildJobs(dir, root, label string, filter *appFilter) ([]j
 		if !flux.IsRelease(o) {
 			continue
 		}
+		file := attr.File(o)
+		if keep != nil && !keep(file) {
+			continue
+		}
 		rel, err := res.Resolve(o)
-		if !filter.keep(attr.File(o), appNames(label, o, rel)...) {
+		if !filter.keep(file, appNames(b.label, o, rel)...) {
 			continue
 		}
 		if err != nil {
-			failed = append(failed, failedAt(prefixed(label, o.ID()), attr.File(o), err))
+			failed = append(failed, failedAt(prefixed(b.label, o.ID()), file, err))
 			continue
 		}
-		j, err := releaseJob(rel, label, attr.File(o), relPath(root, dir), nil)
+		j, err := releaseJob(rel, b.label, file, b.where, nil)
 		if err != nil {
-			failed = append(failed, failedAt(prefixed(label, rel.ID), attr.File(o), err))
+			failed = append(failed, failedAt(prefixed(b.label, rel.ID), file, err))
 			continue
 		}
-		j.notes = append(append([]string{}, j.notes...), varNotes...)
+		j.notes = append(append([]string{}, j.notes...), b.varNotes...)
 		jobs = append(jobs, j)
 	}
 	return jobs, failed
+}
+
+func (g *globals) fluxGraph(root string) *flux.Graph {
+	if g.fluxGraphs == nil {
+		g.fluxGraphs = map[string]*flux.Graph{}
+	}
+	key := normPath(root)
+	if gr, ok := g.fluxGraphs[key]; ok {
+		return gr
+	}
+	gr := flux.NewGraph(root, g.repoIndex(root), git.Origin(root), g.cfg.Flux.Substitute)
+	g.fluxGraphs[key] = gr
+	return gr
+}
+
+// graphCover is what the builds of the Flux graph read: their files and directories.
+type graphCover struct {
+	files map[string]bool
+	dirs  []string
+}
+
+// overlay reports whether the graph already read a kustomize overlay: every file of it,
+// and a build of it, inside it or around it, as a base shared with another overlay proves nothing.
+func (c graphCover) overlay(dir string) bool {
+	files := flux.Tree(dir)
+	for _, f := range files {
+		if !c.files[normPath(f)] {
+			return false
+		}
+	}
+	d := normPath(dir)
+	sep := string(filepath.Separator)
+	return len(files) > 0 && slices.ContainsFunc(c.dirs, func(b string) bool {
+		return b == d || strings.HasPrefix(b, d+sep) || strings.HasPrefix(d, b+sep)
+	})
+}
+
+// graphJobs reads the HelmReleases each Kustomization of the Flux graph applies,
+// keeping those whose file is under dir.
+func (g *globals) graphJobs(dir, root string, filter *appFilter) ([]job, []*report.Check, graphCover) {
+	cover := graphCover{files: map[string]bool{}}
+	var jobs []job
+	var failed []*report.Check
+	seen := map[string]bool{}
+	for _, a := range g.fluxGraph(root).Applied {
+		if a.Err != nil {
+			continue
+		}
+		cover.dirs = append(cover.dirs, normPath(a.Dir))
+		for _, f := range flux.Tree(a.Dir, a.Spec.Components...) {
+			cover.files[normPath(f)] = true
+		}
+		if filter.skipsDir(a.Dir) {
+			continue
+		}
+		label := relPath(root, a.Dir)
+		if normPath(a.Dir) == normPath(dir) {
+			label = ""
+		} else if r, err := filepath.Rel(dir, a.Dir); err == nil && !strings.HasPrefix(r, "..") {
+			label = filepath.ToSlash(r)
+		}
+		label = strings.TrimPrefix(label, a.Cluster+"/")
+		b := build{dir: a.Dir, spec: a.Spec, vars: a.Vars, varNotes: a.VarNotes, namespace: a.Spec.Namespace,
+			label: prefixed(a.Cluster, label), where: prefixed(a.Cluster, relPath(root, a.Dir))}
+		js, fails := g.buildJobs(a.Objects, root, b, filter, func(file string) bool {
+			return file != "" && underDir(dir, file)
+		})
+		for _, j := range js {
+			if key := a.Cluster + "|" + normPath(j.appFile) + "|" + j.namespace + "/" + j.app; !seen[key] {
+				seen[key] = true
+				jobs = append(jobs, j)
+			}
+		}
+		failed = append(failed, fails...)
+	}
+	return jobs, failed, cover
+}
+
+// notAppliedJobs lists the HelmReleases of files no Kustomization of the graph applies;
+// overlay, when set, is the kustomize directory they are built from.
+func (g *globals) notAppliedJobs(files []string, root, label, overlay string, filter *appFilter) []job {
+	var jobs []job
+	for _, f := range files {
+		objs, err := flux.ParseFile(f, g.cfg.Flux.Substitute)
+		if err != nil {
+			continue
+		}
+		what := relPath(root, f)
+		if overlay != "" {
+			what = relPath(root, overlay)
+		}
+		for _, o := range objs {
+			if !flux.IsRelease(o) || !filter.keep(f, appNames(label, o, nil)...) {
+				continue
+			}
+			jobs = append(jobs, job{name: prefixed(label, o.ID()), app: o.Name, appFile: f, ident: "flux:" + what + ":" + o.ID(), vals: values.New(),
+				skip: "not applied: no Flux Kustomization of the repository applies " + what})
+		}
+	}
+	return jobs
+}
+
+func underDir(dir, file string) bool {
+	r, err := filepath.Rel(dir, file)
+	return err == nil && !strings.HasPrefix(r, "..") && !filepath.IsAbs(r)
 }
 
 // fluxTargetNamespace is the targetNamespace of the Flux Kustomization that applies dir.

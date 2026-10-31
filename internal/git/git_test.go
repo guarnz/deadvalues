@@ -18,3 +18,19 @@ func TestSameRepository(t *testing.T) {
 		t.Error("acme/apps and acme/values are different repositories")
 	}
 }
+
+func TestSamePath(t *testing.T) {
+	for _, tt := range []struct {
+		a, b string
+		want bool
+	}{
+		{"https://github.com/me/ops", "http://forgejo.svc.cluster.local:3000/me/ops.git", true},
+		{"git@github.com:Me/Ops.git", "https://codeberg.org/me/ops", true},
+		{"https://github.com/me/ops", "https://github.com/other/ops", false},
+		{"https://github.com/me/ops", "", false},
+	} {
+		if got := SamePath(tt.a, tt.b); got != tt.want {
+			t.Errorf("SamePath(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
