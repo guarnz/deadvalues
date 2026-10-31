@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -680,7 +681,7 @@ spec:
 			t.Errorf("%s: want it analyzed once per cluster, got %+v in %v", app, c, got)
 		}
 	}
-	if c := got["staging:demo"]; !strings.Contains(c.Skipped, "not applied") || !strings.Contains(c.Skipped, "apps/staging") {
+	if c := got["staging:demo"]; c.SkipKind != "notApplied" || !strings.Contains(c.Skipped, "apps/staging") {
 		t.Errorf("no Kustomization applies the staging overlay, got skipped %q in %v", c.Skipped, got)
 	}
 }
@@ -806,6 +807,46 @@ spec:
 	}
 }
 
+func TestScanReportsWhatItDoesNotReadYet(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "appset.yaml"), "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata:\n  name: fleet\n  namespace: argocd\nspec:\n  generators: []\n")
+	writeFile(t, filepath.Join(root, "apps", "releases.yaml"), `apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSet
+metadata:
+  name: workers
+  namespace: apps
+spec:
+  inputs: [{node: one}]
+  resources:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata: {name: "worker-<< inputs.node >>"}
+`)
+	writeFile(t, filepath.Join(root, "apps", "namespaces.yaml"), "apiVersion: fluxcd.controlplane.io/v1\nkind: ResourceSet\nmetadata:\n  name: namespaces\nspec:\n  resources:\n    - {apiVersion: v1, kind: Namespace}\n")
+	writeFile(t, filepath.Join(root, "apps", "helmfile.yaml"), "repositories: []\nreleases:\n  - {name: x, chart: y/z}\n")
+	writeFile(t, filepath.Join(root, "apps", "helmfile-values.yaml"), "replicas: 1\n")
+
+	out, code := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json")
+	if code != 0 {
+		t.Fatalf("what is not read yet must not fail the scan: exit %d\n%s", code, out)
+	}
+	got := map[string]string{}
+	for _, c := range decodeChecks(t, out) {
+		got[c.App] = c.SkipKind
+	}
+	want := map[string]string{"argocd/fleet": "unsupported", "apps/workers": "unsupported", "apps/helmfile.yaml": "unsupported"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("apps = %v, want %v", got, want)
+	}
+	table, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root)
+	if !strings.Contains(table, "not supported yet: ApplicationSet") || !strings.Contains(table, "3 not supported yet") {
+		t.Errorf("table:\n%s", table)
+	}
+	if skipped, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "--skip", "fleet,workers,helmfile.yaml,apps/helmfile.yaml", "-o", "json"); strings.Contains(skipped, "fleet") {
+		t.Errorf("--skip should leave them out:\n%s", skipped)
+	}
+}
+
 func TestScanKeepsOverlaysThatOnlyShareABase(t *testing.T) {
 	root := t.TempDir()
 	copyDir(t, "../../testdata/flux", root)
@@ -832,7 +873,7 @@ spec:
 	out, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
 	found := false
 	for _, c := range decodeChecks(t, out) {
-		found = found || strings.HasPrefix(c.App, "staging:") && strings.Contains(c.Skipped, "not applied")
+		found = found || strings.HasPrefix(c.App, "staging:") && c.SkipKind == "notApplied"
 	}
 	if !found {
 		t.Errorf("the staging overlay reads only the base production also reads; it must be reported, not lost:\n%s", out)

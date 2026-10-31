@@ -152,7 +152,7 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 		jobs = append(jobs, js...)
 		failed = append(failed, fails...)
 	}
-	return jobs, failed, nil
+	return append(jobs, g.unsupportedJobs(dir, root, files, filter)...), failed, nil
 }
 
 // failedAt reports a target that cannot be resolved, with the file or overlay

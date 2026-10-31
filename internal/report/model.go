@@ -55,7 +55,9 @@ type Check struct {
 	Notes    []string       `json:"notes,omitempty"`
 	Unproven int            `json:"sharedUnverified"`
 	Skipped  string         `json:"skipped,omitempty"`
-	Error    string         `json:"error,omitempty"`
+	// SkipKind is why Skipped: SkipUnsupported, SkipNotApplied or SkipUnavailable.
+	SkipKind string `json:"skipKind,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 // ResolveShared handles values files loaded by several targets: a key with no effect
@@ -233,9 +235,31 @@ func Failed(app string, err error) *Check {
 	return &Check{App: app, Error: err.Error(), Counts: map[string]int{}}
 }
 
-// NotAnalyzed reports an app that was found but cannot be analyzed yet; it is not an error.
-func NotAnalyzed(app, reason string) *Check {
-	return &Check{App: app, Skipped: reason, Counts: map[string]int{}}
+// Kinds of Check.SkipKind: a source deadvalues does not read yet, an app nothing
+// deploys, and an app it could not reach.
+const (
+	SkipUnsupported = "unsupported"
+	SkipNotApplied  = "notApplied"
+	SkipUnavailable = "unavailable"
+)
+
+// NotAnalyzed reports an app that was found but not analyzed; it is not an error.
+func NotAnalyzed(app, reason, kind string) *Check {
+	if kind == "" {
+		kind = SkipUnavailable
+	}
+	return &Check{App: app, Skipped: reason, SkipKind: kind, Counts: map[string]int{}}
+}
+
+// SkipLabel names why the app was not analyzed, for the reports.
+func (c *Check) SkipLabel() string {
+	switch c.SkipKind {
+	case SkipUnsupported:
+		return "not supported yet"
+	case SkipNotApplied:
+		return "not applied"
+	}
+	return "not analyzed"
 }
 
 func findingDetail(f probe.Finding) string {

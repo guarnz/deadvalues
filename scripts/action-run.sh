@@ -42,12 +42,12 @@ dv() {
 }
 
 rows_jq=$(cat <<'EOF'
-def rank: {"BREAKING":0,"ERROR":1,"PINNED":2,"DEAD":3,"CHANGED":4,"FIXED":5,"REDUNDANT":6,"CONDITIONAL":7,"NOT ANALYZED":8}[.] // 9;
+def rank: {"BREAKING":0,"ERROR":1,"PINNED":2,"DEAD":3,"CHANGED":4,"FIXED":5,"REDUNDANT":6,"CONDITIONAL":7,"NOT ANALYZED":8,"NOT APPLIED":9,"NOT YET":10}[.] // 11;
 def rel: if $ws != "" and startswith($ws + "/") then .[($ws | length) + 1:] else . end;
 [.[] | if type == "array" then .[] else . end] as $reports
 | [$reports[] | . as $r
     | if (.error // "") != "" then {app: .app, file: (.appFile // ""), head: (.chart // ""), kind: "ERROR", key: "", detail: .error, src: null}
-      elif (.skipped // "") != "" then {app: .app, file: (.appFile // ""), head: "", kind: "NOT ANALYZED", key: "", detail: .skipped, src: null}
+      elif (.skipped // "") != "" then {app: .app, file: (.appFile // ""), head: "", kind: ({"unsupported":"NOT YET","notApplied":"NOT APPLIED"}[.skipKind // ""] // "NOT ANALYZED"), key: "", detail: .skipped, src: null}
       elif has("changes") then .changes[]? | select(.ignored != true)
         | {app: $r.app, file: ($r.appFile // ""), head: "chart \($r.from) → \($r.to)", kind: .kind, key: .key, detail: .detail, src: (.origins // [])[0], diff: true}
       elif has("keys") then .keys[]?
@@ -63,7 +63,7 @@ EOF
 
 body_jq=$(cat <<'EOF'
 def mark: if . <= 1 then "-" elif . <= 3 then "!" elif . == 5 then "+" else "±" end;
-def light: if . <= 1 then "-" elif . <= 3 then "!" elif . == 8 then "±" else "+" end;
+def light: if . <= 1 then "-" elif . <= 3 then "!" elif . >= 8 then "±" else "+" end;
 def heading: .[0:1] + (.[1:] | ascii_downcase);
 def cell: gsub("\\|"; "\\|") | gsub("\n"; " ") | gsub("  +"; " ");
 def pad($w): . + (if $w > length then " " * ($w - length) else "" end);
@@ -78,7 +78,7 @@ def src: if . == null or (.file // "") == "" then ""
   ) | join("\n")) as $byapp
 | ($rows | group_by(.rank) | map(
     "\(.[0].kind | heading):\n"
-    + (map("\(.rank | mark) \(.app | pad($w))  \(if .key != "" then .key else "not analyzed" end)") | join("\n"))
+    + (map("\(.rank | mark) \(.app | pad($w))  \(if .key != "" then .key else (.kind | ascii_downcase) end)") | join("\n"))
   ) | join("\n\n")) as $groups
 | "Findings (\($apps | length) app\(if ($apps | length) == 1 then "" else "s" end)):\n\($byapp)\n\n\($groups)" as $summary
 | ($apps | map(

@@ -66,7 +66,7 @@ func (r graphRoot) cluster() string {
 func NewGraph(repoRoot string, ix *Index, origin string, extra map[string]string) *Graph {
 	g := &Graph{}
 	for _, o := range ix.Objects {
-		if o.Kind == "ResourceSet" && generatesKustomization(o) {
+		if o.Kind == "ResourceSet" && ResourceSetGenerates(o, "Kustomization") {
 			g.templated = true
 		}
 	}
@@ -145,16 +145,16 @@ func SpecOf(ks *Object) Spec {
 	return s
 }
 
-// generatesKustomization reports whether a ResourceSet's resources or template make a Flux Kustomization.
-func generatesKustomization(rs *Object) bool {
+// ResourceSetGenerates reports whether a ResourceSet's resources or template make that kind.
+func ResourceSetGenerates(rs *Object, kind string) bool {
 	if list := Get(rs.Node, "spec", "resources"); list != nil {
 		for _, r := range list.Content {
-			if Str(r, "kind") == "Kustomization" {
+			if Str(r, "kind") == kind {
 				return true
 			}
 		}
 	}
-	return strings.Contains(Str(rs.Node, "spec", "resourcesTemplate"), "kind: Kustomization")
+	return strings.Contains(Str(rs.Node, "spec", "resourcesTemplate"), "kind: "+kind)
 }
 
 func isFluxKustomization(o *Object) bool {

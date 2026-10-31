@@ -32,14 +32,15 @@ func (w *Writer) checksTable(cs []*Check, scan bool) {
 // totals is the one-line summary of a scan across every app.
 func (w *Writer) totals(cs []*Check) string {
 	p := w.Paint
-	var withDead, dead, cond, redundant, failed, skipped int
+	var withDead, dead, cond, redundant, failed int
+	skipped := map[string]int{}
 	for _, c := range cs {
 		if c.Error != "" {
 			failed++
 			continue
 		}
 		if c.Skipped != "" {
-			skipped++
+			skipped[c.SkipLabel()]++
 			continue
 		}
 		if c.Counts["DEAD"] > 0 {
@@ -66,8 +67,10 @@ func (w *Writer) totals(cs []*Check) string {
 		fmt.Sprintf("%d conditional", cond),
 		fmt.Sprintf("%d redundant", redundant),
 	}
-	if skipped > 0 {
-		parts = append(parts, p.Yellow(fmt.Sprintf("%d not analyzed", skipped)))
+	for _, label := range []string{"not analyzed", "not applied", "not supported yet"} {
+		if skipped[label] > 0 {
+			parts = append(parts, p.Yellow(fmt.Sprintf("%d %s", skipped[label], label)))
+		}
 	}
 	if failed > 0 {
 		parts = append(parts, p.Red(plural(failed, "error", "errors")))
@@ -82,7 +85,7 @@ func (w *Writer) checkTable(c *Check) {
 		return
 	}
 	if c.Skipped != "" {
-		fmt.Fprintf(w.Out, "%s  %s %s\n", p.Bold(c.App), p.Yellow("not analyzed:"), c.Skipped)
+		fmt.Fprintf(w.Out, "%s  %s %s\n", p.Bold(c.App), p.Yellow(c.SkipLabel()+":"), c.Skipped)
 		return
 	}
 	if len(c.Values) == 0 {
@@ -183,7 +186,7 @@ func (w *Writer) scanSummary(cs []*Check) {
 			continue
 		}
 		if c.Skipped != "" {
-			fmt.Fprintf(w.Out, "%-*s  %s %s\n", appW, c.App, p.Yellow("not analyzed:"), c.Skipped)
+			fmt.Fprintf(w.Out, "%-*s  %s %s\n", appW, c.App, p.Yellow(c.SkipLabel()+":"), c.Skipped)
 			continue
 		}
 		if len(c.Values) == 0 {
