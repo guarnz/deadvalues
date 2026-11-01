@@ -87,9 +87,9 @@ Use both: the diff shows what the cluster gets, deadvalues shows which line of y
 ### Requirements
 
 - **No `helm` binary and no cluster:** charts are rendered in memory with the Helm SDK.
-- **`git`** for the commands that compare revisions (`diff --base/--head`, `scan --changed-since`) and to find the repository root.
-- **Network access** to the chart repositories (HTTP or OCI), unless the charts are local or already cached.
-- **Private repositories** use your existing Helm credentials (`helm repo add`, `helm registry login`).
+- **`git`** for the commands that compare revisions (`diff --base/--head`, `scan --changed-since`), for charts in other git repositories and to find the repository root.
+- **Network access** to the chart repositories (HTTP or OCI) and to the git repositories that hold charts, unless the charts are local or already cached.
+- **Private repositories** use your existing Helm credentials (`helm repo add`, `helm registry login`) and what your `git` already has.
 
 Releases are signed with cosign (keyless) and ship an SBOM. How to verify them, run the container as your user and set up shell completion is in [docs/install.md](https://github.com/guarnz/deadvalues/blob/main/docs/install.md).
 

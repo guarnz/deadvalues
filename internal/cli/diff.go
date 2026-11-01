@@ -284,7 +284,9 @@ func (g *globals) diffTarget(ctx context.Context, t *targetFlags, from, to, base
 		if old == nil && to == "" {
 			return nil, usageErr("--to is required (or use --base / --head)")
 		}
-		reports = append(reports, g.diff(ctx, j, oldRef, newRef))
+		if d := g.diff(ctx, j, oldRef, newRef); d != nil {
+			reports = append(reports, d)
+		}
 	}
 	if s != nil {
 		for _, d := range reports {
@@ -378,7 +380,9 @@ func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string,
 		if !ok || j.skip != "" || o.skip != "" || j.ref.IsLocal() || o.ref.IsLocal() || o.ref == j.ref {
 			continue
 		}
-		reports = append(reports, g.diff(ctx, j, o.ref, j.ref))
+		if d := g.diff(ctx, j, o.ref, j.ref); d != nil {
+			reports = append(reports, d)
+		}
 	}
 	for _, d := range reports {
 		s.relocate(d)
@@ -440,6 +444,10 @@ func (g *globals) diff(ctx context.Context, j job, oldRef, newRef source.Ref) *r
 	start := time.Now()
 	from, to := oldRef.Version, newRef.Version
 	fail := func(err error) *report.Diff {
+		if reason, ok := source.Unavailable(err); ok {
+			fmt.Fprintf(g.stderr, "skip %s: %s\n", j.name, reason)
+			return nil
+		}
 		d := report.FailedDiff(j.name, err)
 		d.AppFile, d.From, d.To = j.appFile, from, to
 		return d

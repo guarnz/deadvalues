@@ -1,6 +1,7 @@
 package argo
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,7 +11,7 @@ import (
 	"github.com/guarnz/deadvalues/internal/git"
 )
 
-func TestValueFilesFromAnotherRepositoryAreNotAnalyzed(t *testing.T) {
+func TestValueFilesThatCannotBeFetchedAreNotAnalyzed(t *testing.T) {
 	root := t.TempDir()
 	for _, args := range [][]string{{"init", "-q"}, {"remote", "add", "origin", "git@github.com:acme/apps.git"}} {
 		if out, err := git.Command(root, args...).CombinedOutput(); err != nil {
@@ -51,7 +52,7 @@ spec:
 		if err != nil {
 			t.Fatal(err)
 		}
-		targets, err := apps[0].Targets(root)
+		targets, err := apps[0].Targets(root, func(string, string) (string, error) { return "", errors.New("no access") })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +97,7 @@ spec:
 	if err != nil {
 		t.Fatal(err)
 	}
-	targets, err := apps[0].Targets(root)
+	targets, err := apps[0].Targets(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +128,7 @@ spec:
 	if err != nil {
 		t.Fatal(err)
 	}
-	targets, err := apps[0].Targets(t.TempDir())
+	targets, err := apps[0].Targets(t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +184,7 @@ spec:
 		if err != nil {
 			t.Fatal(err)
 		}
-		targets, err := apps[0].Targets(t.TempDir())
+		targets, err := apps[0].Targets(t.TempDir(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}

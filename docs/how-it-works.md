@@ -26,6 +26,8 @@ Renders run in parallel, in memory, client-side (like `helm template`). Nothing 
 
 Without `--version`, the latest chart is used; a range (`1.x`, `>=1.0.0`) picks the highest match. Remote charts are loaded in memory and cached as `.tgz` in the user cache directory (`~/.cache/deadvalues` on Linux), or `--cache-dir`; `--no-cache` always downloads.
 
+A chart in another git repository is fetched with `git` as one shallow commit and kept in the same cache by commit, so a branch is looked up every run and a commit is fetched once. The dependencies its `charts/` directory lacks are downloaded too, at the versions of `Chart.lock`, as Argo CD and Flux do before rendering. Fetching never prompts and takes only `https`, `http`, `ssh` and `git` URLs (set `GIT_ALLOW_PROTOCOL` to change that), and symbolic links in the clone stay plain files.
+
 ## Values files without a chart (`-f` alone)
 
 With `-f` and no `--app` or `--chart`, in `check`, `explain`, `prune` and `diff`:
