@@ -71,6 +71,7 @@ diff first.`,
 			}
 			votes := map[string]*vote{}
 			var order []string
+			readOnly := func(o values.Origin) bool { return o.ReadOnly }
 			type done struct {
 				j   job
 				res *probe.Result
@@ -89,7 +90,14 @@ diff first.`,
 				ignored := g.ignorer(j.app)
 				for _, f := range a.result.Findings {
 					ok := prunable(f.Status, only, includeConditional) && !ignored(f.Path)
-					for _, o := range j.vals.ExactOrigins(f.Path) {
+					origins := j.vals.ExactOrigins(f.Path)
+					if i := slices.IndexFunc(origins, readOnly); i >= 0 {
+						if ok {
+							fmt.Fprintf(g.stderr, "skip %s: set in %s:%d, in a patch, a ConfigMap or a YAML anchor; edit it manually\n", f.Key(), g.writer().Rel(origins[i].File), origins[i].Line)
+						}
+						continue
+					}
+					for _, o := range origins {
 						if !o.IsFile {
 							if ok {
 								fmt.Fprintf(g.stderr, "skip %s: set in %s, edit it manually\n", f.Key(), o.File)
@@ -127,7 +135,8 @@ diff first.`,
 					if !v.agree || !loads(d.j, v.file) {
 						continue
 					}
-					if f, ok := d.res.Find(v.path); !ok || !prunable(f.Status, only, includeConditional) || ignored(v.path) {
+					if f, ok := d.res.Find(v.path); !ok || !prunable(f.Status, only, includeConditional) || ignored(v.path) ||
+						slices.ContainsFunc(d.j.vals.ExactOrigins(v.path), readOnly) {
 						v.agree = false
 					}
 				}

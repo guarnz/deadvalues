@@ -18,6 +18,13 @@ func TestApply(t *testing.T) {
 			n:     1,
 		},
 		{
+			name:  "key written as an alias",
+			in:    "name: &app web\ncontrollers:\n  *app :\n    replicas: 1\n    image: x\n",
+			paths: [][]string{{"controllers", "web", "replicas"}},
+			want:  "name: &app web\ncontrollers:\n  *app :\n    image: x\n",
+			n:     1,
+		},
+		{
 			name:  "only child removes the parent",
 			in:    "a: 1\nmonitoring:\n  serviceMonitor:\n    enabled: true\nb: 2\n",
 			paths: [][]string{{"monitoring", "serviceMonitor", "enabled"}},

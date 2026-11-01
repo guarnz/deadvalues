@@ -79,8 +79,8 @@ func NewGraph(repoRoot string, ix *Index, origin string, extra map[string]string
 		labels = make([]string, len(roots))
 	}
 	seen := map[string]bool{}
-	var visit func(ks *Object, dir, cluster string, scope []*Object)
-	visit = func(ks *Object, dir, cluster string, scope []*Object) {
+	var visit func(ks *Object, dir, cluster string, scope []*Object, inherited []*valuePatch)
+	visit = func(ks *Object, dir, cluster string, scope []*Object, inherited []*valuePatch) {
 		key := cluster + "|" + canonical(dir)
 		if ks != nil {
 			key += "|" + ks.ID()
@@ -90,16 +90,22 @@ func NewGraph(repoRoot string, ix *Index, origin string, extra map[string]string
 		}
 		seen[key] = true
 		a := apply(ks, dir, cluster, ix, &Index{Objects: scope}, extra)
+		a.Spec.inherited = inherited
 		g.Applied = append(g.Applied, a)
 		inner := append(append([]*Object{}, a.Objects...), scope...)
+		var patches *Attributor
 		for _, o := range a.Objects {
 			if isFluxKustomization(o) && followed(o, ix, origin) {
-				visit(o, pathOf(repoRoot, o), cluster, inner)
+				if patches == nil {
+					patches = NewAttributor(nil, a.Vars)
+					patches.ReadPatches(dir, a.Spec)
+				}
+				visit(o, pathOf(repoRoot, o), cluster, inner, patches.childPatches(o, dir))
 			}
 		}
 	}
 	for i, r := range roots {
-		visit(r.ks, r.dir, labels[i], nil)
+		visit(r.ks, r.dir, labels[i], nil, nil)
 	}
 	return g
 }
@@ -111,6 +117,10 @@ func apply(ks *Object, dir, cluster string, ix, scope *Index, extra map[string]s
 	if ks != nil {
 		a.Vars, a.VarNotes = ix.VarsIn(ks, scope)
 		a.Spec = SpecOf(ks)
+		a.Spec.Source = ks
+		if ks.File == "" {
+			a.Spec.Source = ix.Find(ks.Kind, ks.Name, ks.Namespace, dir)
+		}
 	}
 	for k, v := range extra {
 		a.Vars[k] = v
