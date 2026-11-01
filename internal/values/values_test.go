@@ -58,3 +58,26 @@ func TestResolveDottedKeys(t *testing.T) {
 		t.Error("missing key resolved")
 	}
 }
+
+func TestLinesOfMergeKeys(t *testing.T) {
+	s := New()
+	data := "defaults: &defaults\n  port: 80\n  host: a\napp:\n  <<: *defaults\n  host: b\n"
+	if err := s.AddYAML([]byte(data), "inline"); err != nil {
+		t.Fatal(err)
+	}
+	for key, line := range map[string]int{"port": 2, "host": 6} {
+		if o := s.Origins([]string{"app", key}); len(o) != 1 || o[0].Line != line {
+			t.Errorf("%s: %+v, want line %d", key, o, line)
+		}
+	}
+}
+
+func TestLinesOfKeysWrittenAsAliases(t *testing.T) {
+	s := New()
+	if err := s.AddYAML([]byte("name: &app web\ncontrollers:\n  *app :\n    replicas: 1\n"), "inline"); err != nil {
+		t.Fatal(err)
+	}
+	if o := s.Origins([]string{"controllers", "web", "replicas"}); len(o) != 1 || o[0].Line != 4 {
+		t.Errorf("origins = %+v", o)
+	}
+}

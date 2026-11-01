@@ -283,11 +283,41 @@ func (r *Resolver) valuesFrom(out *Release, rel *Object, vf *yaml.Node, ns strin
 		}
 		return fmt.Errorf("valuesFrom %s has no key %q", label, key)
 	}
+	text, file := r.declared(o, key, rel.File)
+	if text == nil {
+		if target != "" {
+			out.Values.AddAt(strings.Split(target, "."), data, values.Origin{File: label})
+			return nil
+		}
+		return out.Values.AddYAML([]byte(data), label)
+	}
+	origin := values.Origin{File: file, Line: text.Line, IsFile: true, ReadOnly: true, Prefix: []string{"data", key}}
 	if target != "" {
-		out.Values.AddAt(strings.Split(target, "."), data, values.Origin{File: label})
+		out.Values.AddAt(strings.Split(target, "."), data, origin)
 		return nil
 	}
-	return out.Values.AddYAML([]byte(data), label)
+	origin.Line = textOffset(text)
+	return out.Values.AddEmbedded([]byte(data), origin)
+}
+
+// declared finds the text of a key in the file of its ConfigMap or Secret; a build
+// output has no file, and the base64 of a Secret's data is not the text.
+func (r *Resolver) declared(o *Object, key, near string) (*yaml.Node, string) {
+	if o.File == "" && r.Fallback != nil {
+		o = r.Fallback.Find(o.Kind, o.Name, o.Namespace, near)
+	}
+	if o == nil || o.File == "" {
+		return nil, ""
+	}
+	if v := Get(o.Node, "stringData", key); v != nil {
+		return v, o.File
+	}
+	if o.Kind == "ConfigMap" {
+		if v := Get(o.Node, "data", key); v != nil {
+			return v, o.File
+		}
+	}
+	return nil, ""
 }
 
 // noteMissing adds one note per missing source, listing every targetPath

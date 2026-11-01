@@ -280,11 +280,15 @@ func generated(dir string) []*Object {
 	return out
 }
 
-// Spec is what a Flux Kustomization adds to the kustomization of its path.
+// Spec is what a Flux Kustomization adds to the kustomization of its path. Source is
+// that Kustomization in its file, for the lines of its patches; inherited holds the
+// ones its parent gives it through a patch.
 type Spec struct {
 	Namespace  string
 	Components []string
 	Patches    []interface{}
+	Source     *Object
+	inherited  []*valuePatch
 }
 
 // Build runs kustomize on dir in process, the way Flux's kustomize-controller
@@ -382,11 +386,14 @@ func canonical(p string) string {
 // Attributor traces keys of a built HelmRelease back to the files of the
 // build that set them: the base release and every patch, in kustomize order.
 type Attributor struct {
-	docs []*Object
+	docs    []*Object
+	patches []*valuePatch
+	affixes [][2]string
+	vars    map[string]string
 }
 
 func NewAttributor(files []string, vars map[string]string) *Attributor {
-	a := &Attributor{}
+	a := &Attributor{vars: vars}
 	for _, f := range files {
 		objs, err := ParseFile(f, vars)
 		if err != nil {
@@ -401,32 +408,65 @@ func NewAttributor(files []string, vars map[string]string) *Attributor {
 	return a
 }
 
+// names returns the name of the release in the build, then without each namePrefix and nameSuffix.
+func (a *Attributor) names(rel *Object) []string {
+	names := []string{rel.Name}
+	for _, f := range a.affixes {
+		for _, n := range names {
+			if len(n) > len(f[0])+len(f[1]) && strings.HasPrefix(n, f[0]) && strings.HasSuffix(n, f[1]) {
+				names = append(names, n[len(f[0]):len(n)-len(f[1])])
+			}
+		}
+	}
+	return names
+}
+
 // docsFor returns the documents of the release: same name and namespace, or, when a
 // targetNamespace or kustomize namespace replaced it, the same name.
 func (a *Attributor) docsFor(rel *Object) []*Object {
-	var same, named []*Object
-	for _, d := range a.docs {
-		if d.Name != rel.Name {
-			continue
+	for _, name := range a.names(rel) {
+		var same, named []*Object
+		for _, d := range a.docs {
+			if d.Name != name {
+				continue
+			}
+			named = append(named, d)
+			if d.Namespace == "" || rel.Namespace == "" || d.Namespace == rel.Namespace {
+				same = append(same, d)
+			}
 		}
-		named = append(named, d)
-		if d.Namespace == "" || rel.Namespace == "" || d.Namespace == rel.Namespace {
-			same = append(same, d)
+		if len(same) > 0 {
+			return same
+		}
+		if len(named) > 0 {
+			return named
 		}
 	}
-	if len(same) > 0 {
-		return same
-	}
-	return named
+	return nil
 }
 
-// Origins lists every file of the build whose HelmRelease sets spec.values.<path>.
+// Origins lists every file of the build that sets spec.values.<path>: the documents of
+// the HelmRelease first, then the patches that reach it.
 func (a *Attributor) Origins(rel *Object, path []string) []values.Origin {
-	full := append([]string{"spec", "values"}, path...)
+	prefix := []string{"spec", "values"}
+	full := append(slices.Clone(prefix), path...)
 	var out []values.Origin
-	for _, d := range a.docsFor(rel) {
+	docs := a.docsFor(rel)
+	namespaces := []string{rel.Namespace}
+	for _, d := range docs {
+		namespaces = append(namespaces, d.Namespace)
 		if k, _ := lookup(d.Node, full); k != nil {
-			out = append(out, values.Origin{File: d.File, Line: k.Line, IsFile: true, Doc: d.Doc, Prefix: []string{"spec", "values"}})
+			out = append(out, values.Origin{File: d.File, Line: k.Line, IsFile: true, Doc: d.Doc, Prefix: prefix, ReadOnly: throughAnchor(d.Node, full)})
+		}
+	}
+	names := a.names(rel)
+	for _, p := range a.patches {
+		line := p.line(full)
+		if line == 0 || !p.reaches(docs) || !p.applies(rel, names, namespaces) {
+			continue
+		}
+		if !slices.ContainsFunc(out, func(o values.Origin) bool { return o.File == p.file && o.Line == line }) {
+			out = append(out, values.Origin{File: p.file, Line: line, IsFile: true, Doc: p.doc, Prefix: prefix, ReadOnly: p.readOnly})
 		}
 	}
 	return out
