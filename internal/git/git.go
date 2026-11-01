@@ -20,7 +20,8 @@ func Command(dir string, args ...string) *exec.Cmd {
 // remote prepares git for a repository a manifest names: it never prompts, and a URL
 // cannot run a command through `ext::`. GIT_ALLOW_PROTOCOL and GIT_SSH_COMMAND still win.
 func remote(ctx context.Context, dir string, args ...string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	base := Command(dir, args...)
+	cmd := exec.CommandContext(ctx, base.Path, base.Args[1:]...)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	if os.Getenv("GIT_ALLOW_PROTOCOL") == "" {
 		cmd.Env = append(cmd.Env, "GIT_ALLOW_PROTOCOL=https:http:ssh:git")

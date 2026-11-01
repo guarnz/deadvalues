@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -66,10 +67,12 @@ func (l *Loader) clone(ctx context.Context, url, revision string) (string, error
 	}
 	base := l.CacheDir
 	if base == "" {
-		base = filepath.Join(os.TempDir(), "deadvalues")
+		if base, err = os.MkdirTemp("", "deadvalues-"); err != nil {
+			return "", err
+		}
 	}
-	host, path, _ := strings.Cut(git.Normalize(url), "/")
-	dir := filepath.Join(base, "git", unsafeChars.ReplaceAllString(host, "_"), unsafeChars.ReplaceAllString(path, "_"), commit)
+	// A short name, because Windows limits a path to 260 characters.
+	dir := filepath.Join(base, "git", fmt.Sprintf("%x", sha256.Sum256([]byte(git.Normalize(url)+"@"+commit)))[:16])
 	if l.NoCache {
 		if err := os.RemoveAll(dir); err != nil {
 			return "", err

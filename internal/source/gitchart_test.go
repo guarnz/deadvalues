@@ -90,8 +90,8 @@ func TestCheckoutIsCachedByCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filepath.Base(dir) != commits["1.0.0"] {
-		t.Errorf("dir = %s", dir)
+	if head := gitIn(t, dir, "rev-parse", "HEAD"); head != commits["1.0.0"] {
+		t.Errorf("HEAD = %s", head)
 	}
 	marker := filepath.Join(dir, "marker")
 	writeTree(t, dir, map[string]string{"marker": ""})
@@ -107,6 +107,25 @@ func TestCheckoutIsCachedByCommit(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); err == nil {
 		t.Error("--no-cache must fetch again")
+	}
+}
+
+func TestCheckoutWithoutACacheIsNotShared(t *testing.T) {
+	url, commits := chartRepo(t)
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	t.Setenv("TMP", tmp)
+	ctx := context.Background()
+	first, err := (&Loader{}).Checkout(ctx, url, commits["1.0.0"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := (&Loader{}).Checkout(ctx, url, commits["1.0.0"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Errorf("a path anyone can predict must not be reused: %s", first)
 	}
 }
 
