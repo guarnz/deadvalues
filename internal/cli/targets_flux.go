@@ -130,6 +130,7 @@ type build struct {
 // buildJobs reads the HelmReleases of a build output; keep, when set, picks them by file.
 func (g *globals) buildJobs(objs []*flux.Object, root string, b build, filter *appFilter, keep func(file string) bool) ([]job, []*report.Check) {
 	attr := flux.NewAttributor(flux.Tree(b.dir, b.spec.Components...), b.vars)
+	attr.ReadPatches(b.dir, b.spec)
 	res := &flux.Resolver{
 		RepoRoot:  root,
 		Sources:   &flux.Index{Objects: append(append([]*flux.Object{}, flux.TreeGenerators(b.dir, b.spec.Components...)...), objs...)},

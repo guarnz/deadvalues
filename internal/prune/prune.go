@@ -73,7 +73,11 @@ func removeOne(data []byte, e Edit) ([]byte, bool, error) {
 		}
 		found := false
 		for i := 0; i+1 < len(node.Content); i += 2 {
-			if node.Content[i].Value == seg {
+			name := node.Content[i]
+			if name.Kind == yaml.AliasNode && name.Alias != nil {
+				name = name.Alias
+			}
+			if name.Value == seg {
 				chain = append(chain, hit{key: node.Content[i], mapping: node, value: node.Content[i+1]})
 				node = node.Content[i+1]
 				found = true

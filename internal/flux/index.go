@@ -204,6 +204,56 @@ func deref(n *yaml.Node) *yaml.Node {
 	return n
 }
 
+// findKey finds a key in a mapping, written as it is or as an alias, then in what a
+// `<<` merge key brings in.
+func findKey(m *yaml.Node, k string) (key, value *yaml.Node) {
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if deref(m.Content[i]).Value == k {
+			return m.Content[i], m.Content[i+1]
+		}
+	}
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value != "<<" {
+			continue
+		}
+		merged := deref(m.Content[i+1])
+		list := []*yaml.Node{merged}
+		if merged.Kind == yaml.SequenceNode {
+			list = merged.Content
+		}
+		for _, src := range list {
+			if src = deref(src); src != nil && src.Kind == yaml.MappingNode {
+				if key, value = findKey(src, k); value != nil {
+					return key, value
+				}
+			}
+		}
+	}
+	return nil, nil
+}
+
+// throughAnchor reports whether a path reaches its key by a `<<` merge key or an alias:
+// the key is written under the anchor, which other keys may share.
+func throughAnchor(n *yaml.Node, path []string) bool {
+	cur := deref(n)
+	for _, k := range path {
+		if cur == nil || cur.Kind != yaml.MappingNode {
+			return true
+		}
+		var next *yaml.Node
+		for i := 0; i+1 < len(cur.Content) && next == nil; i += 2 {
+			if deref(cur.Content[i]).Value == k {
+				next = cur.Content[i+1]
+			}
+		}
+		if next == nil {
+			return true
+		}
+		cur = next
+	}
+	return false
+}
+
 func lookup(n *yaml.Node, path []string) (key, value *yaml.Node) {
 	cur := deref(n)
 	for _, k := range path {
@@ -211,12 +261,7 @@ func lookup(n *yaml.Node, path []string) (key, value *yaml.Node) {
 			return nil, nil
 		}
 		var next *yaml.Node
-		for i := 0; i+1 < len(cur.Content); i += 2 {
-			if cur.Content[i].Value == k {
-				key, next = cur.Content[i], cur.Content[i+1]
-				break
-			}
-		}
+		key, next = findKey(cur, k)
 		if next == nil {
 			return nil, nil
 		}

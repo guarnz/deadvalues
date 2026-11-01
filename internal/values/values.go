@@ -16,12 +16,14 @@ import (
 
 // Origin is where a key was set: a file and line, or a source such as "--set". For
 // values embedded in a manifest, Doc is the YAML document in File, Prefix the block path.
+// ReadOnly is for a key prune cannot reach, as one inside the text of a patch.
 type Origin struct {
-	File   string   `json:"file"`
-	Line   int      `json:"line,omitempty"`
-	IsFile bool     `json:"-"`
-	Doc    int      `json:"-"`
-	Prefix []string `json:"-"`
+	File     string   `json:"file"`
+	Line     int      `json:"line,omitempty"`
+	IsFile   bool     `json:"-"`
+	Doc      int      `json:"-"`
+	Prefix   []string `json:"-"`
+	ReadOnly bool     `json:"-"`
 }
 
 type Set struct {
@@ -124,6 +126,17 @@ func (s *Set) AddNode(n *yaml.Node, file string, doc int, prefix []string) error
 	return nil
 }
 
+// AddEmbedded merges values written as text in a manifest, such as a key of a ConfigMap;
+// origin.Line is the line of the file before that text.
+func (s *Set) AddEmbedded(data []byte, origin Origin) error {
+	if err := s.add(data, origin); err != nil {
+		return fmt.Errorf("%s: %w", origin.File, err)
+	}
+	s.addSource(origin.File)
+	s.manifests[origin.File] = true
+	return nil
+}
+
 // ResolveAliases copies n with every alias replaced by its anchored node, so
 // a block cut from a bigger document encodes without the anchors outside it.
 func ResolveAliases(n *yaml.Node) *yaml.Node {
@@ -215,7 +228,7 @@ func (s *Set) track(m map[string]interface{}, path []string, origin Origin, line
 	for k, v := range m {
 		p := append(append([]string{}, path...), k)
 		o := origin
-		o.Line = lines[Key(p)]
+		o.Line += lines[Key(p)]
 		s.origins[Key(p)] = append(s.origins[Key(p)], o)
 		if child, ok := v.(map[string]interface{}); ok {
 			s.track(child, p, origin, lines)
@@ -255,9 +268,38 @@ func collectLines(n *yaml.Node, path []string, lines map[string]int) {
 			if k.Value == "<<" {
 				continue
 			}
-			p := append(append([]string{}, path...), k.Value)
+			name := k.Value
+			if k.Kind == yaml.AliasNode && k.Alias != nil {
+				name = k.Alias.Value
+			}
+			p := append(append([]string{}, path...), name)
 			lines[Key(p)] = k.Line
 			collectLines(v, p, lines)
+		}
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			if n.Content[i].Value == "<<" {
+				collectMerged(n.Content[i+1], path, lines)
+			}
+		}
+	}
+}
+
+// collectMerged adds the lines of a `<<` merge key, without replacing the keys already set.
+func collectMerged(n *yaml.Node, path []string, lines map[string]int) {
+	if n.Kind == yaml.AliasNode && n.Alias != nil {
+		n = n.Alias
+	}
+	if n.Kind == yaml.SequenceNode {
+		for _, c := range n.Content {
+			collectMerged(c, path, lines)
+		}
+		return
+	}
+	merged := map[string]int{}
+	collectLines(n, path, merged)
+	for k, l := range merged {
+		if _, ok := lines[k]; !ok {
+			lines[k] = l
 		}
 	}
 }

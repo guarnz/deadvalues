@@ -260,7 +260,7 @@ func TestFluxCheckApp(t *testing.T) {
 	if s, _ := c.key("service.prot"); s != "DEAD" {
 		t.Errorf("service.prot = %q", s)
 	}
-	if s, o := c.key("image.tag"); s != "ALIVE" || len(o) != 1 || o[0].File != "ConfigMap infra/standalone-tag" {
+	if s, o := c.key("image.tag"); s != "ALIVE" || len(o) != 1 || !strings.HasSuffix(o[0].File, "standalone.yaml") || o[0].Line != 26 {
 		t.Errorf("image.tag = %q %+v", s, o)
 	}
 	if len(c.Notes) == 0 || !strings.Contains(strings.Join(c.Notes, " "), "SOPS") {
@@ -982,4 +982,26 @@ spec:
 
 	writeFile(t, filepath.Join(root, "clusters", "main", "settings-two.yaml"), settings("two", "platform"))
 	scanned("a variable from a ConfigMap", "one:web/one", "two:web/two")
+}
+
+func TestFluxPruneLeavesInlinePatchesAlone(t *testing.T) {
+	root := fluxFixture(t)
+	file := filepath.Join(root, "apps", "base", "demo", "release.yaml")
+	kust := filepath.Join(root, "apps", "staging", "kustomization.yaml")
+	patch := "resources:\n  - ../base/demo\npatches:\n  - target: {kind: HelmRelease}\n    patch: |-\n      - op: replace\n        path: /spec/values/service/prot\n        value: 9091\n"
+	writeFile(t, kust, patch)
+	before, _ := os.ReadFile(file)
+	out, code := runCLI(t, "prune", "-f", file, "--repo-root", root, "--only", "dead", "--yes")
+	if code != 0 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	if !strings.Contains(out, "nothing to prune") {
+		t.Errorf("a key one overlay patches must not be pruned for the others:\n%s", out)
+	}
+	if after, _ := os.ReadFile(file); string(after) != string(before) {
+		t.Errorf("a key the patch replaces must stay, or the build breaks:\n%s", after)
+	}
+	if after, _ := os.ReadFile(kust); string(after) != patch {
+		t.Errorf("the patch must not change:\n%s", after)
+	}
 }
