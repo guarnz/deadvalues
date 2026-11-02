@@ -66,7 +66,7 @@ helmCharts:
     valuesInline:
       replicas: 3
 `)
-	targets, err := kustomizeApp(t, root, "apps/web", "").Targets(root)
+	targets, err := kustomizeApp(t, root, "apps/web", "").Targets(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestKustomizeValuesMerge(t *testing.T) {
 			body += "    valuesInline:\n      replicas: 2\n"
 		}
 		write(t, filepath.Join(root, "app", "kustomization.yaml"), body)
-		targets, err := kustomizeApp(t, root, "app", "").Targets(root)
+		targets, err := kustomizeApp(t, root, "app", "").Targets(root, nil)
 		if tt.err {
 			if err == nil || !strings.Contains(err.Error(), "valuesMerge") {
 				t.Errorf("valuesMerge %q: err %v, want a valuesMerge error", tt.merge, err)
@@ -159,7 +159,7 @@ func TestKustomizeBasesComponentsAndPatches(t *testing.T) {
 	write(t, filepath.Join(root, "overlay", "kustomization.yaml"), "resources:\n  - ../base\n  - ../remote\n")
 
 	app := kustomizeApp(t, root, "overlay", "    kustomize:\n      components:\n        - ../comp\n")
-	targets, err := app.Targets(root)
+	targets, err := app.Targets(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestKustomizeBasesComponentsAndPatches(t *testing.T) {
 	}
 
 	write(t, filepath.Join(root, "overlay", "kustomization.yaml"), "resources:\n  - ../base\npatches:\n  - path: patch.yaml\n")
-	targets, err = kustomizeApp(t, root, "overlay", "").Targets(root)
+	targets, err = kustomizeApp(t, root, "overlay", "").Targets(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestChartDirectoryWithKustomizationStaysHelm(t *testing.T) {
 	root := t.TempDir()
 	write(t, filepath.Join(root, "chart", "Chart.yaml"), "apiVersion: v2\nname: chart\nversion: 0.1.0\n")
 	write(t, filepath.Join(root, "chart", "kustomization.yaml"), "helmCharts:\n  - name: other\n    repo: https://charts.example.com\n")
-	targets, err := kustomizeApp(t, root, "chart", "").Targets(root)
+	targets, err := kustomizeApp(t, root, "chart", "").Targets(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ helmCharts:
     repo: https://bjw-s-labs.github.io/helm-charts/
     releaseName: nextcloud
 `)
-	targets, err := kustomizeApp(t, root, "app", "").Targets(root)
+	targets, err := kustomizeApp(t, root, "app", "").Targets(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

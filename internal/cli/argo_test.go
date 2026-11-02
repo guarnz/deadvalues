@@ -101,7 +101,7 @@ spec:
 	}
 }
 
-func TestChartFromAnotherGitRepoIsNotAnalyzed(t *testing.T) {
+func TestChartFromAGitRepoThatCannotBeReachedIsNotAnalyzed(t *testing.T) {
 	root := t.TempDir()
 	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
 	writeFile(t, filepath.Join(root, "apps", "web.yaml"), `apiVersion: argoproj.io/v1alpha1
@@ -123,7 +123,7 @@ metadata:
   name: vault
 spec:
   source:
-    repoURL: https://github.com/hashicorp/vault-helm.git
+    repoURL: https://example.invalid/hashicorp/vault-helm.git
     targetRevision: v0.25.0
     path: .
     helm:

@@ -3,7 +3,6 @@ package flux
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,14 +32,7 @@ type Release struct {
 	Notes       []string
 	// Placeholders are the targetPaths of valuesFrom sources not in the repository.
 	Placeholders [][]string
-	// Skip is why the release cannot be analyzed yet; it is reported, not rendered.
-	Skip string
 }
-
-// otherRepository is a chart that lives in a git repository other than this checkout.
-type otherRepository struct{ reason string }
-
-func (e *otherRepository) Error() string { return e.reason }
 
 // Resolver turns HelmReleases into releases, with sources, ConfigMaps and Secrets from
 // Sources; in build mode, Attribute traces kustomize output values back to files.
@@ -79,11 +71,6 @@ func (r *Resolver) Resolve(rel *Object) (*Release, error) {
 	out := &Release{Object: rel, ID: ns + "/" + rel.Name, Values: values.New()}
 
 	ref, err := r.chart(rel, spec, ns)
-	var other *otherRepository
-	if errors.As(err, &other) {
-		out.Skip = other.reason
-		return out, nil
-	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", out.ID, err)
 	}
@@ -215,19 +202,39 @@ func (r *Resolver) chartSpec(owner *Object, cs *yaml.Node, ns string) (source.Re
 		}
 		return source.Ref{Repo: url, Chart: chart, Version: version}, nil
 	case "GitRepository":
-		if o := r.find(kind, name, srcNS, owner.File); o != nil {
-			if url := Str(o.Node, "spec", "url"); url != "" && r.Origin != "" && !git.SameRepository(url, r.Origin) {
-				return source.Ref{}, &otherRepository{fmt.Sprintf("Helm chart %s from GitRepository %s/%s is in %s, not in this repository; charts from other git repositories are not supported yet", chart, srcNS, name, url)}
-			}
+		o := r.find(kind, name, srcNS, owner.File)
+		url := ""
+		if o != nil {
+			url = Str(o.Node, "spec", "url")
+		}
+		elsewhere := source.Ref{Git: url, Chart: chart}
+		if o != nil {
+			elsewhere.Version = gitRevision(o.Node)
+		}
+		if url != "" && r.Origin != "" && !git.SameRepository(url, r.Origin) && !git.SamePath(url, r.Origin) {
+			return elsewhere, nil
 		}
 		p := filepath.Join(r.RepoRoot, filepath.FromSlash(strings.TrimPrefix(chart, "./")))
-		if _, err := os.Stat(filepath.Join(p, "Chart.yaml")); err != nil {
-			return source.Ref{}, fmt.Errorf("chart %s from GitRepository %s/%s is not in this repository; charts from other git repositories are not supported", chart, srcNS, name)
+		if _, err := os.Stat(filepath.Join(p, "Chart.yaml")); err == nil {
+			return source.Ref{Chart: p}, nil
 		}
-		return source.Ref{Chart: p}, nil
+		if url != "" && r.Origin == "" {
+			return elsewhere, nil
+		}
+		return source.Ref{}, fmt.Errorf("chart %s from GitRepository %s/%s is not in this repository", chart, srcNS, name)
 	default:
 		return source.Ref{}, fmt.Errorf("sourceRef kind %q is not supported", kind)
 	}
+}
+
+// gitRevision reads spec.ref of a GitRepository, in the order Flux gives its fields.
+func gitRevision(repo *yaml.Node) string {
+	for _, field := range []string{"commit", "name", "semver", "tag", "branch"} {
+		if v := Str(repo, "spec", "ref", field); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func (r *Resolver) valuesFrom(out *Release, rel *Object, vf *yaml.Node, ns string) error {

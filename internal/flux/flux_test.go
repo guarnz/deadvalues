@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/guarnz/deadvalues/internal/source"
 	"github.com/guarnz/deadvalues/internal/values"
 )
 
@@ -579,5 +580,41 @@ func TestBuildLeavesOutWhatFluxDoesNotSubstitute(t *testing.T) {
 	}
 	if got["plain"] != "fallback" || got["script"] != "${VAR:-fallback}" {
 		t.Errorf("got %v", got)
+	}
+}
+
+func TestChartFromAGitRepositoryElsewhere(t *testing.T) {
+	root := t.TempDir()
+	repo := func(url, ref string) string {
+		return "apiVersion: source.toolkit.fluxcd.io/v1\nkind: GitRepository\nmetadata: {name: charts}\nspec:\n  url: " + url + "\n  ref: {" + ref + "}\n"
+	}
+	const release = "apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata: {name: web}\nspec:\n  chart:\n    spec:\n      chart: ./charts/web\n      sourceRef: {kind: GitRepository, name: charts}\n"
+	write(t, root, map[string]string{"charts/web/Chart.yaml": "apiVersion: v2\nname: web\nversion: 1.0.0\n"})
+	for _, tt := range []struct {
+		name, url, ref string
+		want           source.Ref
+	}{
+		{"branch", "https://github.com/acme/charts", "branch: main", source.Ref{Git: "https://github.com/acme/charts", Chart: "./charts/web", Version: "main"}},
+		{"tag over branch", "https://github.com/acme/charts", "branch: main, tag: v1", source.Ref{Git: "https://github.com/acme/charts", Chart: "./charts/web", Version: "v1"}},
+		{"semver over tag", "https://github.com/acme/charts", "tag: v1, semver: 1.x", source.Ref{Git: "https://github.com/acme/charts", Chart: "./charts/web", Version: "1.x"}},
+		{"name over semver", "https://github.com/acme/charts", "semver: 1.x, name: refs/tags/v2", source.Ref{Git: "https://github.com/acme/charts", Chart: "./charts/web", Version: "refs/tags/v2"}},
+		{"commit over all", "https://github.com/acme/charts", "name: refs/tags/v2, commit: abc", source.Ref{Git: "https://github.com/acme/charts", Chart: "./charts/web", Version: "abc"}},
+		{"this repository", "https://github.com/acme/home-ops", "branch: main", source.Ref{Chart: filepath.Join(root, "charts", "web")}},
+		{"a mirror of this repository", "https://forgejo.example.com/acme/home-ops", "branch: main", source.Ref{Chart: filepath.Join(root, "charts", "web")}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			objs, err := ParseYAML([]byte(repo(tt.url, tt.ref) + "---\n" + release))
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := &Resolver{RepoRoot: root, Sources: &Index{Objects: objs}, Origin: "git@github.com:acme/home-ops.git"}
+			got, err := r.Resolve(objs[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Chart != tt.want {
+				t.Errorf("chart = %+v, want %+v", got.Chart, tt.want)
+			}
+		})
 	}
 }

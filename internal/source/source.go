@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -40,16 +41,18 @@ func v2(c charter.Charter, err error) (*chart.Chart, error) {
 
 // Ref identifies a chart: Repo is an HTTP(S) URL or an OCI path (oci:// optional, as in
 // Argo CD); with no Repo, Chart is a local directory, a .tgz or an oci:// reference.
+// With Git, Chart is a path in that repository and Version a branch, tag, commit or range.
 type Ref struct {
 	Repo    string `json:"repo,omitempty"`
+	Git     string `json:"git,omitempty"`
 	Chart   string `json:"chart"`
 	Version string `json:"version,omitempty"`
 }
 
 func (r Ref) String() string {
 	s := r.Chart
-	if r.Repo != "" {
-		s = strings.TrimSuffix(r.Repo, "/") + "/" + r.Chart
+	if base := r.Repo + r.Git; base != "" {
+		s = strings.TrimSuffix(base, "/") + "/" + r.Chart
 	}
 	if r.Version != "" {
 		s += "@" + r.Version
@@ -63,7 +66,7 @@ func (r Ref) WithVersion(v string) Ref {
 }
 
 func (r Ref) IsLocal() bool {
-	return r.Repo == "" && !strings.HasPrefix(r.Chart, "oci://")
+	return r.Repo == "" && r.Git == "" && !strings.HasPrefix(r.Chart, "oci://")
 }
 
 type Loader struct {
@@ -71,6 +74,7 @@ type Loader struct {
 	NoCache  bool
 	HTTP     *http.Client
 	auth     map[string][2]string
+	clones   sync.Map
 }
 
 func NewLoader(cacheDir string, noCache bool) *Loader {
@@ -93,7 +97,7 @@ func HelmRepositoryConfig() string {
 // ResolveAlias turns "repo/chart" into the repository from `helm repo add`, as `helm
 // template` does; oci:// references and existing local paths come back unchanged.
 func (l *Loader) ResolveAlias(ref Ref) (Ref, error) {
-	if ref.Repo != "" || strings.HasPrefix(ref.Chart, "oci://") || strings.HasPrefix(ref.Chart, ".") || filepath.IsAbs(ref.Chart) {
+	if ref.Repo != "" || ref.Git != "" || strings.HasPrefix(ref.Chart, "oci://") || strings.HasPrefix(ref.Chart, ".") || filepath.IsAbs(ref.Chart) {
 		return ref, nil
 	}
 	if _, err := os.Stat(ref.Chart); err == nil {
@@ -119,6 +123,8 @@ func (l *Loader) ResolveAlias(ref Ref) (Ref, error) {
 
 func (l *Loader) Load(ctx context.Context, ref Ref) (*chart.Chart, error) {
 	switch {
+	case ref.Git != "":
+		return l.gitChart(ctx, ref)
 	case ref.IsLocal():
 		return v2(loader.Load(ref.Chart))
 	case strings.HasPrefix(ref.Chart, "oci://"):
