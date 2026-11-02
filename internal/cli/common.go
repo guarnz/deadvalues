@@ -75,6 +75,8 @@ type job struct {
 	apiVersions []string
 	// skipCRDs is set when the app does not apply the crds/ files of the chart.
 	skipCRDs bool
+	// skipSchema is set when the app renders without checking values.schema.json.
+	skipSchema bool
 }
 
 func (g *globals) jobs(t *targetFlags) ([]job, error) {
@@ -151,12 +153,13 @@ func (g *globals) renderer(ctx context.Context, j job, ref source.Ref) (*render.
 		apis = append(append([]string{}, g.flagAPIVersions...), j.apiVersions...)
 	}
 	return render.New(c, render.Options{
-		Release:      j.release,
-		Namespace:    j.namespace,
-		KubeVersion:  kube,
-		APIVersions:  apis,
-		Placeholders: j.placeholders,
-		SkipCRDs:     j.skipCRDs,
+		Release:              j.release,
+		Namespace:            j.namespace,
+		KubeVersion:          kube,
+		APIVersions:          apis,
+		Placeholders:         j.placeholders,
+		SkipCRDs:             j.skipCRDs,
+		SkipSchemaValidation: j.skipSchema,
 	})
 }
 

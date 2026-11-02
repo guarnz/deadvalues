@@ -297,6 +297,80 @@ spec:
 	}
 }
 
+func TestSchemaValidationCanBeSkipped(t *testing.T) {
+	root := t.TempDir()
+	chart := filepath.Join(root, "charts", "strict")
+	writeFile(t, filepath.Join(chart, "Chart.yaml"), "apiVersion: v2\nname: strict\nversion: 1.0.0\n")
+	writeFile(t, filepath.Join(chart, "values.schema.json"), `{"type": "object", "properties": {"port": {"type": "integer"}}}`)
+	writeFile(t, filepath.Join(chart, "templates", "config.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: config\ndata:\n  port: {{ .Values.port | quote }}\n")
+
+	application := func(helm string) string {
+		return `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: strict
+spec:
+  source:
+    repoURL: https://example.com/repo
+    path: charts/strict
+    helm:
+      values: |
+        port: open` + helm + "\n"
+	}
+	release := func(spec string) string {
+		return `apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: strict
+spec:
+  chart:
+    spec:
+      chart: ./charts/strict
+      sourceRef:
+        kind: GitRepository
+        name: platform
+  values:
+    port: open` + spec + `
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: platform
+spec:
+  url: https://example.com/repo
+`
+	}
+	for name, tt := range map[string]struct {
+		app    string
+		passes bool
+	}{
+		"Argo CD":                         {application(""), false},
+		"helm.skipSchemaValidation":       {application("\n      skipSchemaValidation: true"), true},
+		"Flux":                            {release(""), false},
+		"install.disableSchemaValidation": {release("\n  install:\n    disableSchemaValidation: true"), true},
+		"upgrade.disableSchemaValidation": {release("\n  upgrade:\n    disableSchemaValidation: true"), true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			file := filepath.Join(root, "manifests", "strict.yaml")
+			writeFile(t, file, tt.app)
+			out, code := runCLI(t, "check", "--app", file, "--repo-root", root, "-o", "json", "--fail-on", "none")
+			if !tt.passes {
+				if code == 0 {
+					t.Errorf("the schema must reject the value\n%s", out)
+				}
+				return
+			}
+			if code != 0 {
+				t.Fatalf("exit %d\n%s", code, out)
+			}
+			_, keys := statuses(t, out)
+			if got := keys["port"].Status; got != "ALIVE" {
+				t.Errorf("port = %q, want ALIVE\n%s", got, out)
+			}
+		})
+	}
+}
+
 func kustomizeHelmChart(release, extra string) string {
 	return "helmGlobals:\n  chartHome: ../../charts\nhelmCharts:\n  - name: cases\n    releaseName: " + release +
 		"\n    valuesFile: values.yaml\n    valuesInline:\n      replicas: 5\n" + extra
