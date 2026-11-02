@@ -207,7 +207,7 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 		return nil, fmt.Errorf("%s: baseline render failed: %w", r.Label(), err)
 	}
 	if len(apis) > 0 {
-		keepBootstrapKeys(withoutAPIs, j.vals.Values, res)
+		keepBootstrapKeys(withoutAPIs, r, j.vals.Values, res)
 	}
 	a := &analysis{renderer: r, defaults: defaults, result: res, took: time.Since(start)}
 
@@ -234,11 +234,11 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 
 // keepBootstrapKeys revives dead keys that matter while a CRD is not there yet, such as
 // cilium's trustCRDsExist on a first install: they are idle on a running cluster, not dead.
-func keepBootstrapKeys(r *render.Renderer, vals map[string]interface{}, res *probe.Result) {
+func keepBootstrapKeys(without, with *render.Renderer, vals map[string]interface{}, res *probe.Result) {
 	if !slices.ContainsFunc(res.Findings, func(f probe.Finding) bool { return f.Status == probe.Dead }) {
 		return
 	}
-	withoutAPIs := renderFunc(r)
+	withoutAPIs, withAPIs := renderFunc(without), renderFunc(with)
 	base, err := withoutAPIs(values.CopyMap(vals))
 	if err != nil {
 		return
@@ -254,9 +254,17 @@ func keepBootstrapKeys(r *render.Renderer, vals map[string]interface{}, res *pro
 		}
 		mutated := values.CopyMap(vals)
 		values.Delete(mutated, f.Path)
-		if snap, err := withoutAPIs(mutated); err != nil || !compare.Equal(base, snap, noise) {
-			res.Findings[i].Status = probe.Alive
+		snap, err := withoutAPIs(values.CopyMap(mutated))
+		if err == nil && compare.Equal(base, snap, noise) {
+			continue
 		}
+		// A failure that the APIs do not fix, as a schema that needs the key, is not about the CRD.
+		if err != nil {
+			if _, err := withAPIs(mutated); err != nil {
+				continue
+			}
+		}
+		res.Findings[i].Status = probe.Alive
 	}
 }
 
