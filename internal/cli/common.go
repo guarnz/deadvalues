@@ -73,6 +73,8 @@ type job struct {
 	// kubeVersion and apiVersions are the app's own, as an Argo CD source can set them.
 	kubeVersion string
 	apiVersions []string
+	// skipCRDs is set when the app does not apply the crds/ files of the chart.
+	skipCRDs bool
 }
 
 func (g *globals) jobs(t *targetFlags) ([]job, error) {
@@ -154,6 +156,7 @@ func (g *globals) renderer(ctx context.Context, j job, ref source.Ref) (*render.
 		KubeVersion:  kube,
 		APIVersions:  apis,
 		Placeholders: j.placeholders,
+		SkipCRDs:     j.skipCRDs,
 	})
 }
 
