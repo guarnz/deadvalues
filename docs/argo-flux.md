@@ -27,6 +27,7 @@
 | `helm.apiVersions` | the APIs for that app, replacing `apiVersions` of `.deadvalues.yaml` as Argo CD replaces the cluster's; `--api-versions` is still added |
 | `helm.ignoreMissingValueFiles` | a missing value file is skipped instead of failing |
 | `helm.skipCrds` | the `crds/` files of subcharts do not count in the comparison, as they are not applied |
+| `helm.skipSchemaValidation` | the chart renders without checking `values.schema.json` |
 | Several `valueFiles` | merged in Argo's order; each key is reported with its source file |
 | A source with `path` and no `chart` | the local chart in the repository, with the dependencies its `charts/` directory lacks, as Argo CD builds them |
 | Several Applications in one file | each one is read; one with no Helm source (plain manifests) is skipped |
@@ -50,6 +51,7 @@
 | `valuesFrom[].optional` | missing and optional: ignored, like the helm-controller does |
 | Merge order | `valuesFrom` in list order, then `spec.values` on top, as the helm-controller does |
 | `install.crds: Skip`, `install.skipCRDs` | the `crds/` files of subcharts do not count in the comparison, as they are not installed |
+| `install.disableSchemaValidation`, `upgrade.disableSchemaValidation` | either one makes the chart render without checking `values.schema.json` |
 | Release name | `spec.releaseName`; otherwise `<targetNamespace>-<name>` when there is a `targetNamespace`; otherwise the name |
 | Namespace | `spec.targetNamespace`, otherwise the `targetNamespace` of the Flux `Kustomization` that applies the directory, otherwise `metadata.namespace`, otherwise `default` |
 

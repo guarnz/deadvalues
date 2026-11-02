@@ -143,6 +143,31 @@ metadata:
 	}
 }
 
+func TestRenderSkipsTheSchemaWhenAsked(t *testing.T) {
+	c := &chart.Chart{
+		Metadata:  &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
+		Schema:    []byte(`{"type": "object", "properties": {"port": {"type": "integer"}}}`),
+		Templates: []*common.File{{Name: "templates/config.yaml", Data: []byte("kind: ConfigMap\ndata:\n  port: {{ .Values.port | quote }}\n")}},
+	}
+	vals := map[string]interface{}{"port": "open"}
+	strict, err := New(c, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := strict.Render(vals); err == nil {
+		t.Error("the schema must reject the value")
+	}
+	loose, err := New(c, Options{SkipSchemaValidation: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []*Renderer{loose, loose.WithAPIVersions([]string{"example.com/v1"})} {
+		if _, err := r.Render(vals); err != nil {
+			t.Errorf("the schema must be skipped: %v", err)
+		}
+	}
+}
+
 func TestWithGroupVersions(t *testing.T) {
 	got := withGroupVersions([]string{"monitoring.coreos.com/v1/ServiceMonitor", "v1/Service", "apps/v1", "cert-manager.io/v1"})
 	want := []string{"monitoring.coreos.com/v1/ServiceMonitor", "v1/Service", "apps/v1", "cert-manager.io/v1", "monitoring.coreos.com/v1", "v1"}

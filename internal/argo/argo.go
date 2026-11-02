@@ -54,6 +54,7 @@ type Helm struct {
 	Parameters              []Parameter            `json:"parameters"`
 	IgnoreMissingValueFiles bool                   `json:"ignoreMissingValueFiles"`
 	SkipCrds                bool                   `json:"skipCrds"`
+	SkipSchemaValidation    bool                   `json:"skipSchemaValidation"`
 }
 
 type Parameter struct {
@@ -97,6 +98,8 @@ type Target struct {
 	APIVersions []string
 	// SkipCRDs is set when the source does not apply the crds/ files of the chart.
 	SkipCRDs bool
+	// SkipSchemaValidation renders values that values.schema.json rejects, as Argo CD would.
+	SkipSchemaValidation bool
 	// Skip is why a Helm source cannot be analyzed yet; it is reported, not rendered.
 	Skip string
 	// Clones names the value files that live in a clone: they are reported by repository
@@ -218,6 +221,7 @@ func (a *Application) Targets(repoRoot string, checkout Checkout) ([]Target, err
 				t.Namespace = h.Namespace
 			}
 			t.KubeVersion, t.APIVersions, t.SkipCRDs = h.KubeVersion, h.APIVersions, h.SkipCrds
+			t.SkipSchemaValidation = h.SkipSchemaValidation
 			for _, vf := range h.ValueFiles {
 				repo, rel, remote := remoteValueFile(vf, s, t.Chart.Git != "", refs, origin, env)
 				var p string
