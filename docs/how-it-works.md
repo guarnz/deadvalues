@@ -4,7 +4,7 @@ deadvalues does not parse templates. It **renders the chart, removes each key yo
 
 ![Render the chart, remove a key, render again and compare](assets/how-it-works.svg)
 
-1. Render the chart twice with your values. Fields that differ between the two renders (`randAlphaNum`, generated certificates, checksum annotations) are masked as noise. Helm test hooks are left out, as `helm template --skip-tests` does: Argo CD does not apply them either. The `crds/` files of active subcharts count, by kind and name, because Argo CD and Flux apply them, so a flag that turns such a subchart off is not dead.
+1. Render the chart twice with your values. Fields that differ between the two renders (`randAlphaNum`, generated certificates, checksum annotations) are masked as noise. Maps listed with `keys` or `values` come out sorted, so a chart that picks `keys .ports | first` gets the same port in every render, and `now` is the same time in all of them. Helm test hooks are left out, as `helm template --skip-tests` does: Argo CD does not apply them either. The `crds/` files of active subcharts count, by kind and name, because Argo CD and Flux apply them, so a flag that turns such a subchart off is not dead.
 2. Remove a subtree of your values and re-render. No change → every key under it is classified at once. Change → descend one level (bisection).
 3. For keys whose removal changes nothing:
    - equal to the chart default → `REDUNDANT`
