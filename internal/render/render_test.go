@@ -10,6 +10,74 @@ import (
 	chart "helm.sh/helm/v4/pkg/chart/v2"
 )
 
+func TestRenderListsMapsInOrder(t *testing.T) {
+	c := &chart.Chart{
+		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
+		Values:   map[string]interface{}{"ports": map[string]interface{}{"http": 80, "https": 443, "ldap": 636, "metrics": 9090, "ssh": 22}},
+		Templates: []*common.File{
+			{Name: "templates/cm.yaml", Data: []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ keys .Values.ports | first }}
+data:
+  all: {{ keys .Values.ports .Values.ports | join "," }}
+  ports: {{ values .Values.ports | join "," }}
+`)},
+		},
+	}
+	r, err := New(c, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: http
+data:
+  all: http,http,https,https,ldap,ldap,metrics,metrics,ssh,ssh
+  ports: 80,443,636,9090,22
+`
+	for range 50 {
+		out, err := r.Render(map[string]interface{}{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := out["demo/templates/cm.yaml"]; got != want {
+			t.Fatalf("every render should list the map in order, got:\n%s", got)
+		}
+	}
+}
+
+func TestRenderKeepsTheTime(t *testing.T) {
+	c := &chart.Chart{
+		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
+		Templates: []*common.File{
+			{Name: "templates/cm.yaml", Data: []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo
+  annotations:
+    revision: {{ now | date "20060102150405.000000000" | quote }}
+`)},
+		},
+	}
+	r, err := New(c, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := r.Render(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := r.Render(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Errorf("two renders should print the same time, got:\n%v\n%v", first, second)
+	}
+}
+
 func TestRenderLeavesOutTestHooks(t *testing.T) {
 	c := &chart.Chart{
 		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
