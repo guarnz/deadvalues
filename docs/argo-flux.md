@@ -116,7 +116,7 @@ Each `Kustomization` is built with its `targetNamespace`, `components` and `patc
 - A HelmRelease nothing applies, such as a `ks.yaml` commented out of a `kustomization.yaml`, is listed as not applied instead of being analyzed.
 - A `git` source with the same owner and repository on another host counts as this repository, for mirrors on a self-hosted forge. A `Kustomization` with another source (another repository, `OCIRepository`, `ExternalArtifact`) is not followed.
 
-Without a root in the repository, the `Kustomization`s no other one includes are the starting points, and nothing is reported as not applied, since what applies the rest cannot be seen. The same happens when a build fails or a `ResourceSet` generates `Kustomization`s. What the graph does not reach is then read as before, as overlays and standalone files.
+Without a root in the repository, the `Kustomization`s no other one includes are the starting points, and nothing is reported as not applied, since what applies the rest cannot be seen. The same happens when a build fails or a `ResourceSet` generates `Kustomization`s. What the graph does not reach is then read as before, as overlays and standalone files. A `FluxInstance` or `Kustomization` that applies a subdirectory of the repository from an `OCIRepository`, likely a build of it, does this for that directory only.
 
 ## Flux variables
 
