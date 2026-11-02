@@ -197,6 +197,33 @@ spec:
 	}
 }
 
+func TestLocalChartWithoutItsDependencies(t *testing.T) {
+	srv := helmRepo(t)
+	for _, tt := range []struct{ repository, want, note string }{
+		{srv.URL, "ALIVE", ""},
+		{"http://127.0.0.1:1", "DEAD", "dependencies could not be fetched (cases)"},
+	} {
+		chart := t.TempDir()
+		writeFile(t, filepath.Join(chart, "Chart.yaml"), "apiVersion: v2\nname: wrapper\nversion: 1.0.0\ndependencies:\n  - name: cases\n    version: 0.1.0\n    repository: "+tt.repository+"\n")
+		values := filepath.Join(chart, "user.yaml")
+		writeFile(t, values, "cases:\n  name: web\n  replicas: 5\n")
+		out, code := runCLI(t, "check", "--chart", chart, "-f", values, "-o", "json", "--fail-on", "none")
+		if code != 0 {
+			t.Fatalf("%s: exit %d\n%s", tt.repository, code, out)
+		}
+		var c fluxCheck
+		if err := json.Unmarshal([]byte(out), &c); err != nil {
+			t.Fatalf("%v\n%s", err, out)
+		}
+		if got, _ := c.key("cases.replicas"); got != tt.want {
+			t.Errorf("%s: cases.replicas = %q, want %s", tt.repository, got, tt.want)
+		}
+		if got := strings.Join(c.Notes, " "); tt.note != "" && !strings.Contains(got, tt.note) {
+			t.Errorf("%s: notes = %q", tt.repository, got)
+		}
+	}
+}
+
 func kustomizeHelmChart(release, extra string) string {
 	return "helmGlobals:\n  chartHome: ../../charts\nhelmCharts:\n  - name: cases\n    releaseName: " + release +
 		"\n    valuesFile: values.yaml\n    valuesInline:\n      replicas: 5\n" + extra

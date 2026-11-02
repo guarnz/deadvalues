@@ -145,17 +145,17 @@ func (l *Loader) gitChart(ctx context.Context, ref Ref) (*chart.Chart, error) {
 	dir, err := l.Checkout(ctx, ref.Git, ref.Version)
 	if err == nil {
 		var c *chart.Chart
-		if c, err = l.clonedChart(ctx, dir, filepath.FromSlash(strings.TrimPrefix(ref.Chart, "./")), 0); err == nil {
+		if c, err = l.chartWithDeps(ctx, dir, filepath.FromSlash(strings.TrimPrefix(ref.Chart, "./")), 0); err == nil {
 			return c, nil
 		}
 	}
 	return nil, &UnavailableError{fmt.Sprintf("Helm chart %s could not be fetched: %v; for a private repository, give git access to it", ref, err)}
 }
 
-// clonedChart loads a chart of a clone with the dependencies its charts/ directory lacks,
-// the ones Argo CD and Flux build before rendering: without them the chart is empty.
-func (l *Loader) clonedChart(ctx context.Context, root, rel string, depth int) (*chart.Chart, error) {
-	if !filepath.IsLocal(rel) {
+// chartWithDeps loads a chart with the dependencies charts/ lacks, which Argo CD and Flux build
+// first. With a root, a clone, it stays inside and all must load; a local chart gets what loads.
+func (l *Loader) chartWithDeps(ctx context.Context, root, rel string, depth int) (*chart.Chart, error) {
+	if root != "" && !filepath.IsLocal(rel) {
 		return nil, fmt.Errorf("%s is outside the repository", rel)
 	}
 	if depth > maxLocalDeps {
@@ -175,17 +175,36 @@ func (l *Loader) clonedChart(ctx context.Context, root, rel string, depth int) (
 		}
 		var sub *chart.Chart
 		if p, ok := strings.CutPrefix(d.Repository, "file://"); ok {
-			sub, err = l.clonedChart(ctx, root, filepath.Join(rel, filepath.FromSlash(p)), depth+1)
+			sub, err = l.chartWithDeps(ctx, root, filepath.Join(rel, filepath.FromSlash(p)), depth+1)
 		} else {
-			sub, err = l.Load(ctx, Ref{Repo: d.Repository, Chart: d.Name, Version: lockedVersion(c, d)})
+			sub, err = l.dependency(ctx, Ref{Repo: d.Repository, Chart: d.Name, Version: lockedVersion(c, d)})
 		}
 		if err != nil {
+			if root == "" {
+				continue
+			}
 			return nil, fmt.Errorf("dependency %s: %w", d.Name, err)
 		}
 		c.AddDependency(sub)
 		have[d.Name] = true
 	}
 	return c, nil
+}
+
+// dependency loads a chart a Chart.yaml names and remembers a failure for the run: many charts
+// can share a dependency, and without network each one would wait for the same timeout.
+func (l *Loader) dependency(ctx context.Context, ref Ref) (*chart.Chart, error) {
+	if ref.Repo == "" {
+		return nil, errors.New("it has no repository")
+	}
+	if err, ok := l.failed.Load(ref); ok {
+		return nil, err.(error)
+	}
+	c, err := l.Load(ctx, ref)
+	if err != nil {
+		l.failed.Store(ref, err)
+	}
+	return c, err
 }
 
 // lockedVersion is the version Chart.lock pins for a dependency, or the one Chart.yaml asks for.

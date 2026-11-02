@@ -27,7 +27,7 @@
 | `helm.apiVersions` | the APIs for that app, replacing `apiVersions` of `.deadvalues.yaml` as Argo CD replaces the cluster's; `--api-versions` is still added |
 | `helm.ignoreMissingValueFiles` | a missing value file is skipped instead of failing |
 | Several `valueFiles` | merged in Argo's order; each key is reported with its source file |
-| A source with `path` and no `chart` | the local chart in the repository |
+| A source with `path` and no `chart` | the local chart in the repository, with the dependencies its `charts/` directory lacks, as Argo CD builds them |
 | Several Applications in one file | each one is read; one with no Helm source (plain manifests) is skipped |
 | A source with `helm` and a `path` that is not a chart in this repository (a chart from another git repository) | the chart is fetched from `repoURL` at `targetRevision` (branch, tag, commit or semver range), with the value files next to it; `diff` compares two revisions like two chart versions. When it cannot be fetched, such as a private repository without credentials, it is listed as not analyzed, with the reason; it is not an error, and the rest of the Application is still read |
 

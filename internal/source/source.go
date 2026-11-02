@@ -75,6 +75,7 @@ type Loader struct {
 	HTTP     *http.Client
 	auth     map[string][2]string
 	clones   sync.Map
+	failed   sync.Map
 }
 
 func NewLoader(cacheDir string, noCache bool) *Loader {
@@ -126,7 +127,7 @@ func (l *Loader) Load(ctx context.Context, ref Ref) (*chart.Chart, error) {
 	case ref.Git != "":
 		return l.gitChart(ctx, ref)
 	case ref.IsLocal():
-		return v2(loader.Load(ref.Chart))
+		return l.chartWithDeps(ctx, "", ref.Chart, 0)
 	case strings.HasPrefix(ref.Chart, "oci://"):
 		return l.oci(strings.TrimPrefix(ref.Chart, "oci://"), ref.Version)
 	case isHTTP(ref.Repo):
@@ -150,7 +151,7 @@ func (l *Loader) oci(name, version string) (*chart.Chart, error) {
 	if version == "" {
 		version = "*"
 	}
-	client, err := registry.NewClient(registry.ClientOptCredentialsFile(helmpath.ConfigPath("registry/config.json")))
+	client, err := ociClient()
 	if err != nil {
 		return nil, err
 	}
@@ -169,16 +170,24 @@ func (l *Loader) oci(name, version string) (*chart.Chart, error) {
 		version = v
 	}
 	data, err := l.cached(name, version, func() ([]byte, error) {
-		res, err := client.Pull(name+sep+version, registry.PullOptWithChart(true))
-		if err != nil {
-			return nil, err
-		}
-		return res.Chart.Data, nil
+		return pull(client, name+sep+version)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("oci://%s%s%s: %w", name, sep, version, err)
 	}
 	return v2(loader.LoadArchive(bytes.NewReader(data)))
+}
+
+func ociClient() (*registry.Client, error) {
+	return registry.NewClient(registry.ClientOptCredentialsFile(helmpath.ConfigPath("registry/config.json")))
+}
+
+func pull(client *registry.Client, ref string) ([]byte, error) {
+	res, err := client.Pull(ref, registry.PullOptWithChart(true))
+	if err != nil {
+		return nil, err
+	}
+	return res.Chart.Data, nil
 }
 
 func isDigest(version string) bool {
@@ -245,7 +254,15 @@ func (l *Loader) http(ctx context.Context, ref Ref) (*chart.Chart, error) {
 	}
 
 	data, err := l.cached(base+"/"+ref.Chart, cv.Version, func() ([]byte, error) {
-		return l.get(ctx, target.String())
+		if target.Scheme != "oci" {
+			return l.get(ctx, target.String())
+		}
+		// An index can point at a registry, as the one of Bitnami does.
+		client, err := ociClient()
+		if err != nil {
+			return nil, err
+		}
+		return pull(client, target.Host+target.Path)
 	})
 	if err != nil {
 		return nil, err
