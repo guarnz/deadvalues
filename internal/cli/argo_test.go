@@ -224,6 +224,79 @@ func TestLocalChartWithoutItsDependencies(t *testing.T) {
 	}
 }
 
+func TestCRDsOfASubchartCount(t *testing.T) {
+	root := t.TempDir()
+	chart := filepath.Join(root, "charts", "stack")
+	writeFile(t, filepath.Join(chart, "Chart.yaml"), "apiVersion: v2\nname: stack\nversion: 1.0.0\ndependencies:\n  - name: crds\n    version: 1.0.0\n    condition: crds.enabled\n")
+	writeFile(t, filepath.Join(chart, "values.yaml"), "crds:\n  enabled: true\n")
+	writeFile(t, filepath.Join(chart, "templates", "config.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: config\n")
+	writeFile(t, filepath.Join(chart, "charts", "crds", "Chart.yaml"), "apiVersion: v2\nname: crds\nversion: 1.0.0\n")
+	writeFile(t, filepath.Join(chart, "charts", "crds", "crds", "widget.yaml"), "apiVersion: apiextensions.k8s.io/v1\nkind: CustomResourceDefinition\nmetadata:\n  name: widgets.example.com\n")
+
+	application := func(path, helm string) string {
+		return `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stack
+spec:
+  source:
+    repoURL: https://example.com/repo
+    path: ` + path + helm + "\n"
+	}
+	release := func(install string) string {
+		return `apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: stack
+spec:
+  chart:
+    spec:
+      chart: ./charts/stack
+      sourceRef:
+        kind: GitRepository
+        name: platform
+  values:
+    crds:
+      enabled: false` + install + `
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: platform
+spec:
+  url: https://example.com/repo
+`
+	}
+	const argoValues = "\n    helm:\n      values: |\n        crds:\n          enabled: false"
+	const inflation = "helmGlobals:\n  chartHome: ../../charts\nhelmCharts:\n  - name: stack\n    valuesInline:\n      crds:\n        enabled: false\n"
+	for name, tt := range map[string]struct{ app, kustomization, want string }{
+		"Argo CD":             {application("charts/stack", argoValues), "", "ALIVE"},
+		"helm.skipCrds":       {application("charts/stack", argoValues+"\n      skipCrds: true"), "", "DEAD"},
+		"helmCharts":          {application("apps/stack", ""), inflation, "DEAD"},
+		"includeCRDs":         {application("apps/stack", ""), inflation + "    includeCRDs: true\n", "ALIVE"},
+		"Flux":                {release(""), "", "ALIVE"},
+		"install.crds: Skip":  {release("\n  install:\n    crds: Skip"), "", "DEAD"},
+		"install.skipCRDs":    {release("\n  install:\n    skipCRDs: true"), "", "DEAD"},
+		"install.crds Create": {release("\n  install:\n    crds: Create"), "", "ALIVE"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if tt.kustomization != "" {
+				writeFile(t, filepath.Join(root, "apps", "stack", "kustomization.yaml"), tt.kustomization)
+			}
+			file := filepath.Join(root, "manifests", "stack.yaml")
+			writeFile(t, file, tt.app)
+			out, code := runCLI(t, "check", "--app", file, "--repo-root", root, "-o", "json", "--fail-on", "none")
+			if code != 0 {
+				t.Fatalf("exit %d\n%s", code, out)
+			}
+			_, keys := statuses(t, out)
+			if got := keys["crds.enabled"].Status; got != tt.want {
+				t.Errorf("crds.enabled = %q, want %s\n%s", got, tt.want, out)
+			}
+		})
+	}
+}
+
 func kustomizeHelmChart(release, extra string) string {
 	return "helmGlobals:\n  chartHome: ../../charts\nhelmCharts:\n  - name: cases\n    releaseName: " + release +
 		"\n    valuesFile: values.yaml\n    valuesInline:\n      replicas: 5\n" + extra

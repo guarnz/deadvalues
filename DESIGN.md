@@ -91,7 +91,7 @@ The pipeline has one shape for every command:
 ```
 Deployment/apps/web:.spec.strategy.type = "Recreate"
 ```
-So the comparison does not break if a chart moves a resource to another template. `NOTES.txt`, partials and Helm test hooks (`helm.sh/hook: test`, as `helm template --skip-tests` leaves out and Argo CD ignores) are not part of the output; a test Pod with a random name would otherwise make every key look alive.
+So the comparison does not break if a chart moves a resource to another template. `NOTES.txt`, partials and Helm test hooks (`helm.sh/hook: test`, as `helm template --skip-tests` leaves out and Argo CD ignores) are not part of the output; a test Pod with a random name would otherwise make every key look alive. The `crds/` files of active subcharts are part of the output, by kind and name only: the Helm engine does not render them, yet Argo CD and Flux apply them, so without them `crds.enabled` of kube-prometheus-stack would look dead. They are read once per chart, since these files are large and a chart renders many times. The chart's own `crds/` stay out, because no value turns them off.
 
 **3. Removal with bisection.** For each top-level key:
 ```

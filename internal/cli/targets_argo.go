@@ -126,6 +126,7 @@ func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([
 			watch:       tg.Files,
 			kubeVersion: tg.KubeVersion,
 			apiVersions: tg.APIVersions,
+			skipCRDs:    tg.SkipCRDs,
 		}
 		if t != nil && t.release != "" {
 			j.release = t.release
