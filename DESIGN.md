@@ -323,5 +323,5 @@ Not supported yet:
 |---|---|
 | Flux `chart.spec.valuesFiles` (values files inside the chart package) | a note says those keys are not taken into account |
 | Argo CD `ApplicationSet` | not read; the kustomize directories with `helmCharts:` it points at are scanned on their own, named after their path |
-| Charts from another git repository (Argo CD and Flux) and Argo CD `$ref/` value files from another git repository | listed as not analyzed, with the reason |
+| A chart or `$ref/` value file in a git repository that cannot be fetched, such as a private one without credentials | listed as not analyzed, with the reason |
 | The GitHub Actions on Windows runners | the install script supports Linux and macOS and fails with a clear message |

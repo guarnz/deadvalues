@@ -270,6 +270,11 @@ func (g *globals) check(ctx context.Context, j job) *report.Check {
 		return c
 	}
 	a, err := g.analyze(ctx, j, j.ref)
+	if reason, ok := source.Unavailable(err); ok {
+		c := report.NotAnalyzed(j.name, reason, "")
+		c.AppFile = j.appFile
+		return c
+	}
 	if err != nil {
 		c := report.Failed(j.name, err)
 		c.AppFile = j.appFile

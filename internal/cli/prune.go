@@ -17,6 +17,7 @@ import (
 	"github.com/guarnz/deadvalues/internal/probe"
 	"github.com/guarnz/deadvalues/internal/prune"
 	"github.com/guarnz/deadvalues/internal/report"
+	"github.com/guarnz/deadvalues/internal/source"
 	"github.com/guarnz/deadvalues/internal/values"
 )
 
@@ -83,6 +84,10 @@ diff first.`,
 					continue
 				}
 				a, err := g.analyze(cmd.Context(), j, j.ref)
+				if reason, ok := source.Unavailable(err); ok {
+					fmt.Fprintf(g.stderr, "skip %s: %s\n", j.name, reason)
+					continue
+				}
 				if err != nil {
 					return &exitError{code: 2, err: err}
 				}

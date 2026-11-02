@@ -80,9 +80,9 @@ With another hook manager, such as lefthook, run the same command on commit: `de
 ## Requirements
 
 - **No `helm` binary and no cluster:** charts are rendered in memory with the Helm SDK.
-- **`git`** for the commands that compare revisions (`diff --base/--head`, `scan --changed-since`) and to find the repository root. Without git, pass `--repo-root`.
-- **Network access** to the chart repositories (HTTP or OCI), unless the charts are local or already cached.
-- **Private repositories** use your Helm credentials: `helm repo add` (`repositories.yaml`) and `helm registry login`.
+- **`git`** for the commands that compare revisions (`diff --base/--head`, `scan --changed-since`), for charts in other git repositories and to find the repository root. Without git, pass `--repo-root`.
+- **Network access** to the chart repositories (HTTP or OCI) and to the git repositories that hold charts, unless the charts are local or already cached.
+- **Private repositories** use your Helm credentials: `helm repo add` (`repositories.yaml`) and `helm registry login`. Git repositories use what your `git` already has: a credential helper, an SSH key or `url.<base>.insteadOf`.
 
 ## Shell completion
 

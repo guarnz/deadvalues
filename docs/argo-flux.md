@@ -9,14 +9,14 @@
 | Values | `valueFiles` (`$values/` refs), `values`, `valuesObject`, `parameters` | `valuesFrom` ConfigMaps/Secrets (manifests or `configMapGenerator`, `targetPath`, `optional`), then `spec.values` |
 | Kustomize | A `path` with a `kustomization.yaml` whose `helmCharts:` render the app, also in its local bases and components (see [below](#kustomize-helmcharts)) | — |
 | Overlays | — | A directory with a `kustomization.yaml` is built in process (the same kustomize library Flux uses), so patches are applied; the `components` of the Flux `Kustomization` whose `spec.path` is that directory are added, as Flux does; each key still points to the file and line that set it, also inside a patch written in a `kustomization.yaml` or in the `spec.patches` of a Flux `Kustomization`, even when a parent `Kustomization` passes it down through a patch, a JSON 6902 patch, a `replacements` entry, a key brought in by a YAML merge key or written as an alias, or the text of a ConfigMap or `stringData` Secret. What comes from a remote base, from the base64 `data` of a Secret or from `transformers:` and `generators:` in a kustomization has no line |
-| Not read | `ApplicationSet`, listed as not supported yet (the kustomize directories with `helmCharts:` it points at are still scanned, named after their path); Helm charts and `$ref/` value files from other git repositories (listed as not analyzed, see below) | the values of SOPS-encrypted Secrets and of sources not in the repository (reported as a note, see `valuesFrom` below), charts from other git repositories (listed as not analyzed, see below), `chart.spec.valuesFiles` (reported as a note), `${var}` you do not define (left as text) |
+| Not read | `ApplicationSet`, listed as not supported yet (the kustomize directories with `helmCharts:` it points at are still scanned, named after their path); a chart or `$ref/` value file in a git repository that cannot be fetched (listed as not analyzed, see below) | the values of SOPS-encrypted Secrets and of sources not in the repository (reported as a note, see `valuesFrom` below), a chart in a git repository that cannot be fetched (listed as not analyzed, see below), `chart.spec.valuesFiles` (reported as a note), `${var}` you do not define (left as text) |
 
 ## Argo CD Applications
 
 | Field | How it is read |
 |---|---|
 | `sources` with `ref: values` + `$values/path` | `$values` is the root of the local checkout: the git top level, or `--repo-root` |
-| A `ref` source whose `repoURL` is another repository than the checkout's `origin` | listed as not analyzed, with the value file and the repository, instead of reading a file of the same name here. https, ssh and `git@host:owner/repo` URLs of one repository match; without an `origin` remote every `ref` is taken as this repository |
+| A `ref` source whose `repoURL` is another repository than the checkout's `origin` | the value file is read from that repository at `targetRevision`; each key is reported as `<repoURL>/<path>@<revision>`, and `prune` leaves it alone. When it cannot be fetched, the source is listed as not analyzed, with the reason. https, ssh and `git@host:owner/repo` URLs of one repository match; without an `origin` remote every `ref` is taken as this repository |
 | `helm.valueFiles` without `$ref/` | relative to the `path` of a local chart; with a remote chart it is an error, only `$ref/` paths are supported |
 | `helm.values`, `helm.valuesObject` | used as values |
 | `helm.parameters` | applied on top, like `--set` |
@@ -29,14 +29,14 @@
 | Several `valueFiles` | merged in Argo's order; each key is reported with its source file |
 | A source with `path` and no `chart` | the local chart in the repository |
 | Several Applications in one file | each one is read; one with no Helm source (plain manifests) is skipped |
-| A source with `helm` and a `path` that is not a chart in this repository (a chart from another git repository) | listed as not analyzed, with the repository and path; it is not an error, and the rest of the Application is still read |
+| A source with `helm` and a `path` that is not a chart in this repository (a chart from another git repository) | the chart is fetched from `repoURL` at `targetRevision` (branch, tag, commit or semver range), with the value files next to it; `diff` compares two revisions like two chart versions. When it cannot be fetched, such as a private repository without credentials, it is listed as not analyzed, with the reason; it is not an error, and the rest of the Application is still read |
 
 ## Flux HelmReleases
 
 | Field | How it is read |
 |---|---|
 | `chart.spec.sourceRef` → `HelmRepository` | found by name in the repository; `spec.url` (`type: oci` means OCI) |
-| `chart.spec.sourceRef` → `GitRepository` | if it is this repository, `chart` is a local path; when its `spec.url` is another repository than the checkout's `origin` (https, ssh and `git@host:owner/repo` URLs of one repository match), the HelmRelease is listed as not analyzed, with the repository; without an `origin` remote, a chart path that is not here is an error |
+| `chart.spec.sourceRef` → `GitRepository` | if it is this repository or a mirror of it, `chart` is a local path; when its `spec.url` is another repository than the checkout's `origin` (https, ssh and `git@host:owner/repo` URLs of one repository match), the chart is fetched from there at `spec.ref` (`commit`, `name`, `semver`, `tag` or `branch`, in that order, as in Flux). When it cannot be fetched, such as a private repository without credentials, the HelmRelease is listed as not analyzed, with the reason. Without an `origin` remote, a chart path that is not here is fetched too |
 | `chartRef` → `OCIRepository` | `spec.url` + `spec.ref`: `digest`, else `semver`, else `tag`, the order Flux uses; without a ref, `latest` |
 | `chart.spec` with an inline `OCIRepository` (Flux 2.10: `url` + `ref`, optionally `chart.kind: OCIRepository`) | read like a `chartRef` → `OCIRepository`, with no separate object |
 | `chartRef` → `HelmChart` | followed to its `HelmRepository` |

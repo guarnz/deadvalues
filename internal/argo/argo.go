@@ -96,6 +96,9 @@ type Target struct {
 	APIVersions []string
 	// Skip is why a Helm source cannot be analyzed yet; it is reported, not rendered.
 	Skip string
+	// Clones names the value files that live in a clone: they are reported by repository
+	// and left out of prune, which must not edit the cache.
+	Clones map[string]string
 	// Layers are the values of a kustomize helmCharts entry, in the order helm merges them.
 	Layers []Layer
 	Notes  []string
@@ -152,13 +155,16 @@ func Parse(data []byte) ([]*Application, error) {
 	return apps, nil
 }
 
+// Checkout returns a clone of a git repository at a revision.
+type Checkout func(repoURL, revision string) (string, error)
+
 // Targets resolves every Helm source of the Application; `$ref/...` value files and
-// local chart paths are resolved against repoRoot, the root of the checkout.
-func (a *Application) Targets(repoRoot string) ([]Target, error) {
-	refs := map[string]string{}
+// local chart paths are resolved against repoRoot, the root of the checkout, or a clone.
+func (a *Application) Targets(repoRoot string, checkout Checkout) ([]Target, error) {
+	refs := map[string]Source{}
 	for _, s := range a.Sources {
 		if s.Ref != "" {
-			refs[s.Ref] = s.RepoURL
+			refs[s.Ref] = s
 		}
 	}
 	origin := git.Origin(repoRoot)
@@ -186,17 +192,17 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 				out = append(out, ts...)
 				continue
 			}
-			if noChart != nil {
-				if s.Helm != nil {
-					t.Name = path.Base(strings.TrimSuffix(s.RepoURL, ".git"))
-					t.Skip = fmt.Sprintf("Helm chart at %s in %s is not in this repository; charts from other git repositories are not supported yet", s.Path, s.RepoURL)
-					out = append(out, t)
-				}
+			switch {
+			case noChart == nil:
+				t.Chart = source.Ref{Chart: dir}
+				t.Name = filepath.Base(dir)
+				local = true
+			case s.Helm != nil:
+				t.Chart = source.Ref{Git: s.RepoURL, Chart: s.Path, Version: s.TargetRevision}
+				t.Name = path.Base(strings.TrimSuffix(s.RepoURL, ".git"))
+			default:
 				continue
 			}
-			t.Chart = source.Ref{Chart: dir}
-			t.Name = filepath.Base(dir)
-			local = true
 		default:
 			continue
 		}
@@ -210,13 +216,23 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 			}
 			t.KubeVersion, t.APIVersions = h.KubeVersion, h.APIVersions
 			for _, vf := range h.ValueFiles {
-				if repo := otherRepo(vf, refs, origin); repo != "" {
-					t.Skip = fmt.Sprintf("value file %s comes from %s, another git repository; value files from other git repositories are not supported yet", vf, repo)
-					break
-				}
-				p, err := resolveValueFile(vf, repoRoot, s, local, refs, env)
-				if err != nil {
-					return nil, fmt.Errorf("%s: %w", a.Name, err)
+				repo, rel, remote := remoteValueFile(vf, s, t.Chart.Git != "", refs, origin, env)
+				var p string
+				if remote {
+					dir, err := checkout(repo.RepoURL, repo.TargetRevision)
+					if err != nil {
+						t.Skip = fmt.Sprintf("value file %s could not be fetched from %s: %v; for a private repository, give git access to it", vf, repo.RepoURL, err)
+						break
+					}
+					if !filepath.IsLocal(filepath.FromSlash(rel)) {
+						return nil, fmt.Errorf("%s: value file %s is outside %s", a.Name, vf, repo.RepoURL)
+					}
+					p = filepath.Join(dir, filepath.FromSlash(rel))
+				} else {
+					var err error
+					if p, err = resolveValueFile(vf, repoRoot, s, local, refs, env); err != nil {
+						return nil, fmt.Errorf("%s: %w", a.Name, err)
+					}
 				}
 				if _, err := os.Stat(p); err != nil {
 					if h.IgnoreMissingValueFiles {
@@ -225,6 +241,12 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 					return nil, fmt.Errorf("%s: value file %s: %w", a.Name, vf, err)
 				}
 				t.ValueFiles = append(t.ValueFiles, p)
+				if remote {
+					if t.Clones == nil {
+						t.Clones = map[string]string{}
+					}
+					t.Clones[p] = strings.TrimSuffix(repo.RepoURL, ".git") + "/" + rel + "@" + repo.TargetRevision
+				}
 			}
 			t.Values = h.Values
 			t.ValuesObj = h.ValuesObject
@@ -246,18 +268,24 @@ func (a *Application) Targets(repoRoot string) ([]Target, error) {
 	return out, nil
 }
 
-// otherRepo is the repoURL of the $ref source of vf when it is not the checkout's origin;
-// without an origin every ref is taken as this repository.
-func otherRepo(vf string, refs map[string]string, origin string) string {
-	ref, _, _ := strings.Cut(strings.TrimPrefix(vf, "$"), "/")
-	repo, ok := refs[ref]
-	if !strings.HasPrefix(vf, "$") || !ok || origin == "" || git.SameRepository(repo, origin) {
-		return ""
+// remoteValueFile finds a value file outside the checkout: `$ref/path` to another repository,
+// or a path next to a chart from git. Without an origin every ref is taken as this repository.
+func remoteValueFile(vf string, s Source, gitChart bool, refs map[string]Source, origin string, env map[string]string) (Source, string, bool) {
+	if strings.HasPrefix(vf, "$") {
+		ref, rest, _ := strings.Cut(strings.TrimPrefix(vf, "$"), "/")
+		repo, ok := refs[ref]
+		if !ok || origin == "" || git.SameRepository(repo.RepoURL, origin) {
+			return Source{}, "", false
+		}
+		return repo, envsubst(rest, env), true
 	}
-	return repo
+	if gitChart {
+		return s, path.Join(s.Path, envsubst(vf, env)), true
+	}
+	return Source{}, "", false
 }
 
-func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string]string, env map[string]string) (string, error) {
+func resolveValueFile(vf, repoRoot string, s Source, local bool, refs map[string]Source, env map[string]string) (string, error) {
 	if strings.HasPrefix(vf, "$") {
 		ref, rest, _ := strings.Cut(strings.TrimPrefix(vf, "$"), "/")
 		if _, ok := refs[ref]; !ok {

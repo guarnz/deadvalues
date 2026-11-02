@@ -11,7 +11,7 @@ func TestSameRepository(t *testing.T) {
 		"ssh://git@github.com:22/acme/apps.git",
 	} {
 		if !SameRepository(u, "https://github.com/acme/apps") {
-			t.Errorf("%s is the same repository as https://github.com/acme/apps (normalized %q)", u, normalize(u))
+			t.Errorf("%s is the same repository as https://github.com/acme/apps (normalized %q)", u, Normalize(u))
 		}
 	}
 	if SameRepository("https://github.com/acme/apps", "https://github.com/acme/values") {

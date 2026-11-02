@@ -118,6 +118,13 @@ To keep failing on breaking chart bumps but not on apps that cannot render in CI
     fail-on-error: false
 ```
 
+A chart in a private git repository needs a token before the action. Without one, the app is listed as not analyzed, which does not fail the check:
+
+```yaml
+- run: git config --global url."https://x-access-token:${{ secrets.CHARTS_TOKEN }}@github.com/".insteadOf "https://github.com/"
+- uses: guarnz/deadvalues@v0
+```
+
 The comment then starts with:
 
 ```

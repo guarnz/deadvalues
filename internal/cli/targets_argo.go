@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -47,7 +49,9 @@ func (g *globals) kustomizeJobs(dir, root string, filter *appFilter) ([]job, []*
 }
 
 func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([]job, error) {
-	targets, err := app.Targets(root)
+	targets, err := app.Targets(root, func(url, revision string) (string, error) {
+		return g.loader.Checkout(context.Background(), url, revision)
+	})
 	if err != nil {
 		return nil, &exitError{code: 2, err: err}
 	}
@@ -74,7 +78,16 @@ func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([
 			}
 		}
 		for _, f := range tg.ValueFiles {
-			if err := set.AddFile(f); err != nil {
+			var err error
+			if label, ok := tg.Clones[f]; ok {
+				var data []byte
+				if data, err = os.ReadFile(f); err == nil {
+					err = set.AddYAML(data, label)
+				}
+			} else {
+				err = set.AddFile(f)
+			}
+			if err != nil {
 				return nil, &exitError{code: 2, err: err}
 			}
 		}
