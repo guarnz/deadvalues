@@ -76,7 +76,7 @@ func TestCheckClassifiesEveryCase(t *testing.T) {
 	c, keys := statuses(t, out)
 
 	want := map[string]string{
-		"name":                      "ERROR",
+		"name":                      "REQUIRED",
 		"replicas":                  "ALIVE",
 		"image.repository":          "REDUNDANT",
 		"image.tag":                 "ALIVE",
@@ -269,6 +269,11 @@ func TestExplain(t *testing.T) {
 
 	if _, code := runCLI(t, "explain", "nope", "--chart", casesChart, "-f", casesValues); code != 2 {
 		t.Errorf("unknown key: exit %d, want 2", code)
+	}
+
+	out, code = runCLI(t, "explain", "name", "--chart", casesChart, "-f", casesValues)
+	if code != 0 || !strings.Contains(out, "is required: the render breaks without it") || !strings.Contains(out, "name is required") {
+		t.Errorf("a required key is not a failure, and explain says why: exit %d\n%s", code, out)
 	}
 }
 

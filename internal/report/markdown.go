@@ -22,7 +22,7 @@ func (w *Writer) checksMarkdown(cs []*Check, scan bool) {
 				continue
 			}
 			fmt.Fprintf(w.Out, "| `%s` | %s | %d | %d | %d | %d |\n", c.App, c.Chart, c.Counts["DEAD"], c.Counts["CONDITIONAL"],
-				c.Counts["REDUNDANT"], c.Counts["ALIVE"]+c.Counts["GROUP"]+c.Counts["ERROR"])
+				c.Counts["REDUNDANT"], c.Counts["ALIVE"]+c.Counts["GROUP"]+c.Counts["REQUIRED"])
 		}
 		saved := w.Paint
 		w.Paint = Painter{}

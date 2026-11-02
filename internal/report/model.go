@@ -285,8 +285,6 @@ func findingDetail(f probe.Finding) string {
 		return short(f.Value) + "  (only when " + strings.Join(when, " and ") + ")"
 	case probe.Group:
 		return short(f.Value) + "  (only effective as a group)"
-	case probe.Error:
-		return "removing it breaks the render: " + f.Err
 	default:
 		return short(f.Value)
 	}
@@ -428,7 +426,9 @@ type Explain struct {
 	Key     string           `json:"key"`
 	Value   interface{}      `json:"value"`
 	Changes []compare.Change `json:"changes"`
-	Error   string           `json:"error,omitempty"`
+	// Required is why the render breaks without the key.
+	Required string `json:"required,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 func short(v interface{}) string {

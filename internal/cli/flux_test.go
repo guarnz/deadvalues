@@ -83,7 +83,7 @@ func TestFluxScanBuildsOverlays(t *testing.T) {
 		"labels.env":       "ALIVE",
 		"service.prot":     "DEAD",
 		"ingress.host":     "CONDITIONAL",
-		"name":             "ERROR",
+		"name":             "REQUIRED",
 	}
 	for k, s := range want {
 		if got, _ := prod.key(k); got != s {
