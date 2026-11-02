@@ -108,6 +108,10 @@ func (w *Writer) Explains(es []*Explain) error {
 				fmt.Fprintf(w.Out, "> **Error:** %s\n\n", e.Error)
 				continue
 			}
+			if e.Required != "" {
+				fmt.Fprintf(w.Out, "Required: the render breaks without it.\n\n```text\n%s\n```\n\n", e.Required)
+				continue
+			}
 			if len(e.Changes) == 0 {
 				fmt.Fprint(w.Out, "No effect on the rendered output.\n\n")
 				continue
@@ -129,6 +133,10 @@ func (w *Writer) Explains(es []*Explain) error {
 				continue
 			}
 			fmt.Fprintf(w.Out, "%s  %s\n", p.Bold(e.App), e.Chart)
+			if e.Required != "" {
+				fmt.Fprintf(w.Out, "%s = %s is required: the render breaks without it\n%s\n", p.Bold(e.Key), short(e.Value), e.Required)
+				continue
+			}
 			if len(e.Changes) == 0 {
 				fmt.Fprintf(w.Out, "%s = %s has no effect on the rendered output\n", p.Bold(e.Key), short(e.Value))
 				continue

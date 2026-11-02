@@ -19,18 +19,18 @@ type Status int
 const (
 	Alive Status = iota
 	Group
-	Error
+	Required
 	Redundant
 	Conditional
 	Dead
 )
 
 func (s Status) String() string {
-	return [...]string{"ALIVE", "GROUP", "ERROR", "REDUNDANT", "CONDITIONAL", "DEAD"}[s]
+	return [...]string{"ALIVE", "GROUP", "REQUIRED", "REDUNDANT", "CONDITIONAL", "DEAD"}[s]
 }
 
 // Effective reports whether the key has an effect on the rendered output.
-func (s Status) Effective() bool { return s == Alive || s == Group || s == Error }
+func (s Status) Effective() bool { return s == Alive || s == Group || s == Required }
 
 type Finding struct {
 	Path        []string
@@ -41,7 +41,6 @@ type Finding struct {
 	Implicit    bool
 	Toggles     [][]string
 	RequiresAPI []string
-	Err         string
 }
 
 func (f Finding) Key() string { return values.Display(f.Path) }
@@ -197,7 +196,7 @@ func (p *prober) probe(path []string, sub interface{}) bool {
 		if isMap && p.children(path, m) {
 			return true
 		}
-		p.replaceUnder(path, Finding{Path: path, Status: Error, Value: sub, Err: firstLine(err)})
+		p.replaceUnder(path, Finding{Path: path, Status: Required, Value: sub})
 		return true
 	}
 	if !changed {

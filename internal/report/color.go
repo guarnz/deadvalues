@@ -35,7 +35,7 @@ func (p Painter) Status(s string, width int) string {
 		return p.Green(padded)
 	case "GROUP":
 		return p.Cyan(padded)
-	case "ERROR":
+	case "REQUIRED":
 		return p.Blue(padded)
 	case "SHARED":
 		return p.Dim(padded)

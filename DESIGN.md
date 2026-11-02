@@ -102,7 +102,7 @@ remove the whole subtree → render → compare with BASE
 ```
 A whole branch without effect costs one render to find, so a large block of dead or redundant keys is not probed key by key; only the keys found without effect get the extra tests of step 4. Renders run in parallel (worker pool) on a chart cloned in memory for each render.
 
-If removing a map changes the output but no child alone does (`{{ if or .a .b }}`), the map is `GROUP`, and its children are not reported dead. If removing a key breaks the render (`required`, schema), it is `ERROR`: required, therefore alive.
+If removing a map changes the output but no child alone does (`{{ if or .a .b }}`), the map is `GROUP`, and its children are not reported dead. If removing a key breaks the render (`required`, schema), it is `REQUIRED`, therefore alive. An app that does not render at all is a different thing: it has an error, and it is not analyzed.
 
 **4. Classifying the keys without effect.** Removing the key changed nothing. Why?
 
