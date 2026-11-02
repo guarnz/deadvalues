@@ -33,6 +33,8 @@ type Options struct {
 	Placeholders [][]string
 	// SkipCRDs leaves out the crds/ files of subcharts, for an app that does not apply them.
 	SkipCRDs bool
+	// SkipSchemaValidation renders values that values.schema.json rejects, as the app asks for.
+	SkipSchemaValidation bool
 }
 
 // Placeholder stands in for a value that exists only on the cluster.
@@ -43,7 +45,8 @@ type Renderer struct {
 	opts  common.ReleaseOptions
 	caps  *common.Capabilities
 	// crds holds the objects of each crds/ file of a subchart, read once per chart.
-	crds map[*common.File]string
+	crds       map[*common.File]string
+	skipSchema bool
 }
 
 func New(c *chart.Chart, o Options) (*Renderer, error) {
@@ -71,9 +74,10 @@ func New(c *chart.Chart, o Options) (*Renderer, error) {
 		}
 	}
 	r := &Renderer{
-		chart: c,
-		opts:  common.ReleaseOptions{Name: o.Release, Namespace: o.Namespace, Revision: 1, IsInstall: true},
-		caps:  caps,
+		chart:      c,
+		opts:       common.ReleaseOptions{Name: o.Release, Namespace: o.Namespace, Revision: 1, IsInstall: true},
+		caps:       caps,
+		skipSchema: o.SkipSchemaValidation,
 	}
 	if !o.SkipCRDs {
 		r.crds = subchartCRDs(c)
@@ -118,7 +122,7 @@ func (r *Renderer) Render(vals map[string]interface{}) (map[string]string, error
 	if err := chartutil.ProcessDependencies(c, vals); err != nil {
 		return nil, err
 	}
-	top, err := commonutil.ToRenderValues(c, vals, r.opts, r.caps)
+	top, err := commonutil.ToRenderValuesWithSchemaValidation(c, vals, r.opts, r.caps, r.skipSchema)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +277,7 @@ func withPlaceholders(c *chart.Chart, paths [][]string) (*chart.Chart, error) {
 func (r *Renderer) WithAPIVersions(apis []string) *Renderer {
 	caps := r.caps.Copy()
 	caps.APIVersions = append(append(common.VersionSet{}, r.caps.APIVersions...), withGroupVersions(apis)...)
-	return &Renderer{chart: r.chart, opts: r.opts, caps: caps, crds: r.crds}
+	return &Renderer{chart: r.chart, opts: r.opts, caps: caps, crds: r.crds, skipSchema: r.skipSchema}
 }
 
 // withGroupVersions adds the group/version of each group/version/Kind entry,
