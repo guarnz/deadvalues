@@ -1,6 +1,7 @@
 package flux
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -270,6 +271,50 @@ spec:
 `})
 	if g := graph(t, root, ""); g.Complete() {
 		t.Error("a ResourceSet that generates Kustomizations can apply what the graph does not see")
+	}
+}
+
+func TestGraphDoesNotClaimWhatAnArtifactApplies(t *testing.T) {
+	const fluxInstance = "apiVersion: fluxcd.controlplane.io/v1\nkind: FluxInstance\nmetadata: {name: flux}\nspec:\n  sync: {kind: OCIRepository, url: oci://registry/ops, path: %s}\n"
+	const kustomization = "apiVersion: kustomize.toolkit.fluxcd.io/v1\nkind: Kustomization\nmetadata: {name: dev}\nspec:\n  path: %s\n  sourceRef: {kind: OCIRepository, name: ops}\n"
+	tests := []struct {
+		name     string
+		manifest string
+		path     string
+		want     []string
+	}{
+		{"FluxInstance with a path of the repository", fluxInstance, "./dev/flux", []string{"dev/flux"}},
+		{"Kustomization with a path of the repository", kustomization, "./dev/flux", []string{"dev/flux"}},
+		{"FluxInstance with a path of another artifact", fluxInstance, "./elsewhere", nil},
+		{"Kustomization with a path of another artifact", kustomization, "./elsewhere", nil},
+		{"FluxInstance with the root of an artifact", fluxInstance, "./", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			write(t, root, map[string]string{
+				"clusters/main/flux-system/kustomization.yaml": kdir("gotk-sync.yaml"),
+				"clusters/main/flux-system/gotk-sync.yaml":     kust("flux-system", "./clusters/main"),
+				"clusters/dev/manifest.yaml":                   fmt.Sprintf(tt.manifest, tt.path),
+				"dev/flux/kustomization.yaml":                  kdir("web.yaml"),
+				"dev/flux/web.yaml":                            rel("web"),
+			})
+			g := graph(t, root, "")
+			if !g.Complete() {
+				t.Error("an artifact must not make the graph of the rest of the repository unknown")
+			}
+			var got []string
+			for _, d := range g.Artifacts {
+				rel, err := filepath.Rel(root, d)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got = append(got, filepath.ToSlash(rel))
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("artifacts = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

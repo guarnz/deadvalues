@@ -684,6 +684,27 @@ spec:
 	if c := got["staging:demo"]; c.SkipKind != "notApplied" || !strings.Contains(c.Skipped, "apps/staging") {
 		t.Errorf("no Kustomization applies the staging overlay, got skipped %q in %v", c.Skipped, got)
 	}
+
+	copyDir(t, filepath.Join(root, "apps", "staging"), filepath.Join(root, "apps", "preview"))
+	writeFile(t, filepath.Join(root, "dev", "sync.yaml"), `apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dev
+spec:
+  path: ./apps/preview
+  sourceRef:
+    kind: OCIRepository
+    name: dev
+`)
+	out, _ = runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
+	preview, staging := false, false
+	for _, c := range decodeChecks(t, out) {
+		preview = preview || strings.HasPrefix(c.App, "preview:") && c.SkipKind == ""
+		staging = staging || strings.HasPrefix(c.App, "staging:") && c.SkipKind == "notApplied"
+	}
+	if !preview || !staging {
+		t.Errorf("an artifact can apply the preview overlay and only it, got preview %v, staging %v\n%s", preview, staging, out)
+	}
 }
 
 func TestScanFindsCRDsTheClusterInstalls(t *testing.T) {

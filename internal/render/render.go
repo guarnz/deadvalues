@@ -5,12 +5,15 @@ package render
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"path"
 	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
+	"time"
 	"unicode"
 
 	"helm.sh/helm/v4/pkg/chart/common"
@@ -126,7 +129,7 @@ func (r *Renderer) Render(vals map[string]interface{}) (map[string]string, error
 	if err != nil {
 		return nil, err
 	}
-	out, err := engine.Render(c, top)
+	out, err := engine.Engine{CustomTemplateFuncs: stableFuncs}.Render(c, top)
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +152,30 @@ func (r *Renderer) Render(vals map[string]interface{}) (map[string]string, error
 		}
 	}
 	return manifests, nil
+}
+
+// started is the time of every render, so that a chart that prints `now` repeats.
+var started = time.Now()
+
+// stableFuncs replace the sprig functions that can repeat in two renders and change in the
+// next, which the noise mask cannot see: maps listed in random order, and the time.
+var stableFuncs = template.FuncMap{
+	"now": func() time.Time { return started },
+	"keys": func(dicts ...map[string]interface{}) []string {
+		out := []string{}
+		for _, d := range dicts {
+			out = slices.AppendSeq(out, maps.Keys(d))
+		}
+		slices.Sort(out)
+		return out
+	},
+	"values": func(dict map[string]interface{}) []interface{} {
+		out := []interface{}{}
+		for _, k := range slices.Sorted(maps.Keys(dict)) {
+			out = append(out, dict[k])
+		}
+		return out
+	},
 }
 
 // subchartCRDs reads the crds/ files of the subcharts. The chart's own are left out: a

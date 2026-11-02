@@ -29,6 +29,8 @@ type Graph struct {
 	Applied []*Applied
 	// Explicit is set when the roots are declared, so what they do not reach is not applied.
 	Explicit bool
+	// Artifacts are the directories of this repository that an OCI artifact can apply.
+	Artifacts []string
 	// templated is set when a flux-operator ResourceSet generates Kustomizations the graph cannot follow.
 	templated bool
 }
@@ -68,6 +70,9 @@ func NewGraph(repoRoot string, ix *Index, origin string, extra map[string]string
 	for _, o := range ix.Objects {
 		if o.Kind == "ResourceSet" && ResourceSetGenerates(o, "Kustomization") {
 			g.templated = true
+		}
+		if dir := artifactDir(repoRoot, o, ix); dir != "" {
+			g.Artifacts = append(g.Artifacts, dir)
 		}
 	}
 	orphans := orphanRoots(repoRoot, ix, origin)
@@ -198,6 +203,36 @@ func followed(ks *Object, ix *Index, origin string) bool {
 	}
 }
 
+// artifactDir returns the subdirectory of this repository that o applies from an OCI artifact,
+// likely a build of it; `path: ./` says nothing, as any artifact has a root.
+func artifactDir(repoRoot string, o *Object, ix *Index) string {
+	var kind, p string
+	if isFluxKustomization(o) {
+		kind, p = Str(o.Node, "spec", "sourceRef", "kind"), Str(o.Node, "spec", "path")
+	} else if s := clusterSync(o, ix); s != nil {
+		kind, p = Str(s, "kind"), Str(s, "path")
+	}
+	if kind != "OCIRepository" || p == "" {
+		return ""
+	}
+	dir := filepath.Join(repoRoot, filepath.FromSlash(strings.TrimPrefix(p, "/")))
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() || canonical(dir) == canonical(repoRoot) {
+		return ""
+	}
+	return dir
+}
+
+// clusterSync returns the sync of a FluxInstance or of the values of a flux-instance chart.
+func clusterSync(o *Object, ix *Index) *yaml.Node {
+	switch o.Kind {
+	case "FluxInstance":
+		return Get(o.Node, "spec", "sync")
+	case "HelmRelease":
+		return instanceSync(o, ix)
+	}
+	return nil
+}
+
 // explicitRoots are the declared cluster roots: FluxInstance syncs (as objects or as
 // flux-instance chart values), bootstrap Kustomizations, and the orphans of a directory
 // beside a root, such as clusters/staging next to clusters/production.
@@ -223,13 +258,8 @@ func explicitRoots(repoRoot string, ix *Index, origin string, orphans []graphRoo
 		add(graphRoot{dir: filepath.Join(repoRoot, filepath.FromSlash(strings.TrimPrefix(p, "/")))})
 	}
 	for _, o := range ix.Objects {
-		switch {
-		case o.Kind == "FluxInstance":
-			sync(Get(o.Node, "spec", "sync"))
-		case o.Kind == "HelmRelease":
-			if s := instanceSync(o, ix); s != nil {
-				sync(s)
-			}
+		if s := clusterSync(o, ix); s != nil {
+			sync(s)
 		}
 	}
 	for _, r := range orphans {
