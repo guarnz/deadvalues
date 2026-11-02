@@ -85,8 +85,11 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 	}
 
 	jobs, failed, cover := g.graphJobs(dir, root, filter)
-	notApplied := g.fluxGraph(root).Complete()
-	var releaseFiles []string
+	graph := g.fluxGraph(root)
+	notApplied := func(path string) bool {
+		return graph.Complete() && !slices.ContainsFunc(graph.Artifacts, func(d string) bool { return underDir(normPath(d), normPath(path)) })
+	}
+	var releaseFiles, unapplied []string
 	covered := map[string]bool{}
 	for _, f := range files {
 		apps, err := argo.Load(f)
@@ -114,7 +117,11 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 		case !errors.Is(err, argo.ErrNotApplication):
 			failed = append(failed, failedAt(f, f, err))
 		case !inTree[normPath(f)] && !cover.files[normPath(f)] && g.hasRelease(f):
-			releaseFiles = append(releaseFiles, f)
+			if notApplied(f) {
+				unapplied = append(unapplied, f)
+			} else {
+				releaseFiles = append(releaseFiles, f)
+			}
 		}
 	}
 
@@ -126,10 +133,8 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 		jobs = append(jobs, js...)
 		failed = append(failed, fails...)
 	}
-	switch {
-	case len(releaseFiles) > 0 && notApplied:
-		jobs = append(jobs, g.notAppliedJobs(releaseFiles, root, "", "", filter)...)
-	case len(releaseFiles) > 0:
+	jobs = append(jobs, g.notAppliedJobs(unapplied, root, "", "", filter)...)
+	if len(releaseFiles) > 0 {
 		js, fails := g.fluxFileJobs(releaseFiles, root, nil, filter)
 		jobs = append(jobs, js...)
 		failed = append(failed, fails...)
@@ -144,7 +149,7 @@ func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report
 				label = filepath.ToSlash(rel)
 			}
 		}
-		if notApplied {
+		if notApplied(r) {
 			jobs = append(jobs, g.notAppliedJobs(flux.Tree(r), root, label, r, filter)...)
 			continue
 		}
