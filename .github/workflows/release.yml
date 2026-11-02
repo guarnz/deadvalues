@@ -18,6 +18,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Check the plugin version
+        if: ${{ !contains(github.ref_name, '-') }}
         run: |
           plugin="v$(sed -n 's/^version: *//p' plugin.yaml)"
           if [ "$plugin" != "$GITHUB_REF_NAME" ]; then
