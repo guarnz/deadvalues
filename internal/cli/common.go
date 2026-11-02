@@ -220,6 +220,9 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 	if dead && r.UsesLookup() {
 		a.notes = append(a.notes, "the chart uses lookup, which is empty offline; keys read only through it can look dead")
 	}
+	if missing := r.MissingDependencies(); dead && len(missing) > 0 {
+		a.notes = append(a.notes, "dependencies could not be fetched ("+strings.Join(missing, ", ")+"); keys read only by them can look dead")
+	}
 	return a, nil
 }
 

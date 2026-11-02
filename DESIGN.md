@@ -138,6 +138,8 @@ A `global-values.yaml` loaded by ten charts is dead in some and alive in others.
 
 A chart is downloaded once into memory (`loader.LoadArchive`) and **cloned** for each render, copying only what dependency processing mutates (values, dependency metadata, the subchart list). Parsing the chart for every render cost n8n 9s; cloning made it 0.5s. Remote charts are cached as `.tgz` on disk, keyed by repository path, chart and version.
 
+A chart without its `charts/` directory renders almost nothing, so the dependencies it lacks are fetched as Argo CD and Flux build them. For a local chart this is best effort: it always rendered without them, and losing the network must not turn an analysis into an error, so a dependency that fails stays out, a note names it, and the failure is remembered for the run because many charts share a dependency and each would wait for the same timeout. A chart cloned from another repository is strict instead: a partial clone is reported as not analyzed, and its `file://` paths must stay inside the clone, which comes from a URL in a manifest. A local chart has no such limit, because `file://../common` is usual in a repository and what it reads is the user's own checkout.
+
 ---
 
 ## 5. `diff` and git
