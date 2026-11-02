@@ -85,7 +85,7 @@ The pipeline has one shape for every command:
                                 report
 ```
 
-**1. Base render and noise mask.** The chart is rendered with the full values **twice**. Fields that differ between the two renders (`randAlphaNum`, `now`, `genCA`, checksum annotations) go into a mask and are ignored in every later comparison. Without it, every key would look alive.
+**1. Base render and noise mask.** The chart is rendered with the full values **twice**. Fields that differ between the two renders (`randAlphaNum`, `genCA`, checksum annotations) go into a mask and are ignored in every later comparison. Without it, every key would look alive. The mask only catches what changes between those two renders, so what can repeat and then change is fixed at the source. Sprig's `keys` and `values` list a map in random order, and `keys .ports | first` (as in `app-template`) would pick a different port in some renders: both are replaced by sorted versions in the engine, which give one of the outputs Helm can give. `now` printed in seconds matches in two renders made in the same second and differs in the next ones, so it returns the time the process started.
 
 **2. Normalization.** Each manifest is split with Helm's own `releaseutil.SplitManifests`, and each object is indexed by `Kind/namespace/name`, not by template file. Every field becomes a flattened path:
 ```
