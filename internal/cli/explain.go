@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/guarnz/deadvalues/internal/compare"
@@ -78,7 +76,7 @@ func (g *globals) explain(cmd *cobra.Command, j job, path []string) *report.Expl
 	values.Delete(without, path)
 	snap, err := render(without)
 	if err != nil {
-		e.Error = fmt.Sprintf("removing %s breaks the render: %v", e.Key, err)
+		e.Required = err.Error()
 		return e
 	}
 	e.Changes = compare.Changes(base, snap, compare.Noise(base, again))

@@ -10,7 +10,7 @@ note: list the APIs your cluster serves under apiVersions in .deadvalues.yaml to
   REDUNDANT   ingress.enabled            = chart default false
   REDUNDANT   secretKey                  "SECRET"  (= fallback hardcoded in the template)
   REDUNDANT   service.type               = chart default "ClusterIP"
-  ERROR       name                       removing it breaks the render: execution error at (cases/templates/deployment.yaml:4:11): name is required
+  REQUIRED    name                       "app"
   GROUP       features                   {"a":true,"b":true}  (only effective as a group)
   ALIVE       env                        [{"name":"A","value":"1"}]
   ALIVE       image.tag                  "1.28"

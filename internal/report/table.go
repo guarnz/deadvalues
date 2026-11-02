@@ -132,7 +132,7 @@ func (w *Writer) checkTable(c *Check) {
 	fmt.Fprintln(w.Out, "  "+w.counts(c))
 }
 
-var severity = map[string]int{"DEAD": 0, "SHARED": 1, "CONDITIONAL": 2, "REDUNDANT": 3, "ERROR": 4, "GROUP": 5, "ALIVE": 6}
+var severity = map[string]int{"DEAD": 0, "SHARED": 1, "CONDITIONAL": 2, "REDUNDANT": 3, "REQUIRED": 4, "GROUP": 5, "ALIVE": 6}
 
 // bySeverity returns the keys with the most severe status first, keeping the
 // key order within each status.
@@ -157,7 +157,7 @@ func (w *Writer) counts(c *Check) string {
 	if n := c.Counts["GROUP"]; n > 0 {
 		parts = append(parts, fmt.Sprintf("%d group", n))
 	}
-	if n := c.Counts["ERROR"]; n > 0 {
+	if n := c.Counts["REQUIRED"]; n > 0 {
 		parts = append(parts, fmt.Sprintf("%d required", n))
 	}
 	if c.Shared > 0 {
@@ -198,7 +198,7 @@ func (w *Writer) scanSummary(cs []*Check) {
 			dead = p.Red(dead)
 		}
 		fmt.Fprintf(w.Out, "%-*s  %-*s  %s  %5d  %9d  %5d\n", appW, c.App, chartW, c.Chart, dead,
-			c.Counts["CONDITIONAL"], c.Counts["REDUNDANT"], c.Counts["ALIVE"]+c.Counts["GROUP"]+c.Counts["ERROR"])
+			c.Counts["CONDITIONAL"], c.Counts["REDUNDANT"], c.Counts["ALIVE"]+c.Counts["GROUP"]+c.Counts["REQUIRED"])
 	}
 }
 

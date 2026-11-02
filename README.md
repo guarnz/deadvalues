@@ -174,7 +174,7 @@ Removes keys by deleting only their lines, so comments and formatting stay intac
 | `CONDITIONAL` | Only has an effect when `<x>.enabled=true`, or when the cluster serves an API |
 | `REDUNDANT` | Equal to the chart default (or to a fallback in the template) |
 | `GROUP` | Only has an effect together with its siblings (`if or .a .b`) |
-| `ERROR` | Removing it breaks the render (`required`, schema): the key is required |
+| `REQUIRED` | Removing it breaks the render (`required`, schema): the chart needs the key. `explain <key>` shows why |
 | `SHARED` | `check --app` only: the file is loaded by other apps too, so run `scan` or `check -f` on it |
 
 | `diff` | Meaning |
