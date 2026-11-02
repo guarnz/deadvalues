@@ -1,6 +1,63 @@
 package source
 
-import "testing"
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"testing"
+)
+
+func TestLocalChartGetsWhatItCanOfItsDependencies(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		http.Error(w, "down", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"apps/app/Chart.yaml": "apiVersion: v2\nname: app\nversion: 1.0.0\ndependencies:\n" +
+			"  - {name: lib, version: 1.0.0, repository: \"file://../../shared/lib\"}\n" +
+			"  - {name: vendored, version: 1.0.0, repository: \"https://example.invalid\"}\n" +
+			"  - {name: down, version: 1.0.0, repository: \"" + srv.URL + "\"}\n" +
+			"  - {name: nowhere, version: 1.0.0}\n" +
+			"  - {name: gone, version: 1.0.0, repository: \"file://../gone\"}\n",
+		"apps/app/charts/vendored/Chart.yaml": "apiVersion: v2\nname: vendored\nversion: 1.0.0\n",
+		"shared/lib/Chart.yaml":               "apiVersion: v2\nname: lib\nversion: 1.0.0\n",
+	})
+	l := NewLoader(t.TempDir(), false)
+	for range 2 {
+		c, err := l.Load(context.Background(), Ref{Chart: filepath.Join(root, "apps", "app")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, d := range c.Dependencies() {
+			names = append(names, d.Name())
+		}
+		if got := strings.Join(names, ","); got != "vendored,lib" {
+			t.Errorf("dependencies = %s", got)
+		}
+	}
+	if got := hits.Load(); got != 1 {
+		t.Errorf("a repository that failed was asked %d times in one run", got)
+	}
+}
+
+func TestIndexThatPointsAtARegistry(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, "apiVersion: v1\nentries:\n  web:\n    - name: web\n      version: 1.0.0\n      urls: [\"oci://127.0.0.1:1/charts/web:1.0.0\"]\n")
+	}))
+	defer srv.Close()
+	_, err := NewLoader(t.TempDir(), false).Load(context.Background(), Ref{Repo: srv.URL, Chart: "web", Version: "1.0.0"})
+	if err == nil || strings.Contains(err.Error(), "unsupported protocol") || !strings.Contains(err.Error(), "127.0.0.1:1") {
+		t.Errorf("the chart must be pulled from the registry: %v", err)
+	}
+}
 
 func TestConstraint(t *testing.T) {
 	for _, tc := range []struct {

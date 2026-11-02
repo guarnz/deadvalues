@@ -82,6 +82,17 @@ func (r *Renderer) Version() string { return r.chart.Metadata.Version }
 
 func (r *Renderer) UsesLookup() bool { return usesLookup(r.chart) }
 
+// MissingDependencies lists what Chart.yaml declares and the chart came without.
+func (r *Renderer) MissingDependencies() []string {
+	var out []string
+	for _, d := range r.chart.Metadata.Dependencies {
+		if !slices.ContainsFunc(r.chart.Dependencies(), func(c *chart.Chart) bool { return c.Name() == d.Name }) {
+			out = append(out, d.Name)
+		}
+	}
+	return out
+}
+
 // Defaults returns the chart's values.yaml coalesced with its subcharts.
 func (r *Renderer) Defaults() (map[string]interface{}, error) {
 	vals, err := commonutil.CoalesceValues(clone(r.chart), map[string]interface{}{})
