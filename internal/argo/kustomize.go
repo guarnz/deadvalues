@@ -141,7 +141,7 @@ func (a *Application) kustomizeTargets(dir string, index int, s Source) ([]Targe
 // helmChartTarget builds the target of one helmCharts entry, with values layered
 // in the order kustomize hands them to helm template.
 func (a *Application) helmChartTarget(dir, file, chartHome string, hc types.HelmChart, inline *yaml.Node, j int) (Target, error) {
-	t := Target{App: a.Name, Name: hc.Name, Release: hc.Name, Namespace: hc.Namespace, KubeVersion: hc.KubeVersion, APIVersions: hc.ApiVersions}
+	t := Target{App: a.Name, Name: hc.Name, Release: hc.Name, Namespace: hc.Namespace, KubeVersion: hc.KubeVersion, APIVersions: hc.ApiVersions, SkipCRDs: !hc.IncludeCRDs}
 	if hc.ReleaseName != "" {
 		t.Name, t.Release = hc.ReleaseName, hc.ReleaseName
 	}

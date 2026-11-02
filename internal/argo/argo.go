@@ -53,6 +53,7 @@ type Helm struct {
 	ValuesObject            map[string]interface{} `json:"valuesObject"`
 	Parameters              []Parameter            `json:"parameters"`
 	IgnoreMissingValueFiles bool                   `json:"ignoreMissingValueFiles"`
+	SkipCrds                bool                   `json:"skipCrds"`
 }
 
 type Parameter struct {
@@ -94,6 +95,8 @@ type Target struct {
 	// KubeVersion and APIVersions replace the cluster's when the source sets them, as in Argo CD.
 	KubeVersion string
 	APIVersions []string
+	// SkipCRDs is set when the source does not apply the crds/ files of the chart.
+	SkipCRDs bool
 	// Skip is why a Helm source cannot be analyzed yet; it is reported, not rendered.
 	Skip string
 	// Clones names the value files that live in a clone: they are reported by repository
@@ -214,7 +217,7 @@ func (a *Application) Targets(repoRoot string, checkout Checkout) ([]Target, err
 			if h.Namespace != "" {
 				t.Namespace = h.Namespace
 			}
-			t.KubeVersion, t.APIVersions = h.KubeVersion, h.APIVersions
+			t.KubeVersion, t.APIVersions, t.SkipCRDs = h.KubeVersion, h.APIVersions, h.SkipCrds
 			for _, vf := range h.ValueFiles {
 				repo, rel, remote := remoteValueFile(vf, s, t.Chart.Git != "", refs, origin, env)
 				var p string
