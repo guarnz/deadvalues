@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Edit is one key to remove: Path inside YAML document Doc of the file.
