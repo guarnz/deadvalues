@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/guarnz/deadvalues/internal/report"
 )
@@ -39,15 +40,18 @@ func (g *globals) emit(write func(*report.Writer) error) error {
 			toStdout = false
 		}
 	}
+	generated := time.Now()
 	if toStdout {
-		if err := write(g.writer()); err != nil {
+		w := g.writer()
+		w.Generated = generated
+		if err := write(w); err != nil {
 			return err
 		}
 	}
 	for _, o := range g.outputs {
 		var buf bytes.Buffer
 		w := g.writer()
-		w.Out, w.Format, w.Paint = &buf, o.format, report.Painter{}
+		w.Out, w.Format, w.Paint, w.Generated = &buf, o.format, report.Painter{}, generated
 		if err := write(w); err != nil {
 			return err
 		}

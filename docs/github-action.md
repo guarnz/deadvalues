@@ -186,7 +186,7 @@ _Stats_: [Apps: 1], [Renders: 120], [Run: 1s], [Base: 0bc7546] · Run · Docs
 - A `CAUTION` alert appears only when the check fails; a `NOTE` when there was no base, so every app was scanned. Without findings the report says "No findings in the changed apps."
 - The comment is posted only on pull requests, and updated on every push instead of adding a new one. On push the report is in the job summary.
 
-The findings are read from the JSON output with `jq`, which GitHub-hosted runners have. A command without a JSON report, such as `explain` in `args`, is shown after the findings with its output, and a command that fails, with its errors. Without `jq`, every command is shown that way.
+The findings are read from the [JSON output](json.md) with `jq`, which GitHub-hosted runners have, in the current format and in the one before v0.2.0. A command without a JSON report, such as `explain` in `args`, is shown after the findings with its output, and a command that fails, with its errors. Without `jq`, every command is shown that way.
 
 ## Versions
 

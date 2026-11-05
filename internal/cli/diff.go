@@ -73,13 +73,11 @@ same is done for the Applications and HelmReleases that load those files.`,
 				if len(reports) == 0 {
 					return g.emit(func(w *report.Writer) error {
 						switch w.Format {
-						case "json":
-							fmt.Fprintln(w.Out, "[]")
 						case "markdown":
 							fmt.Fprint(w.Out, "No chart version changed.\n\n")
 						case "table":
 							fmt.Fprintln(w.Out, "no chart version changed")
-						case "sarif":
+						case "json", "sarif":
 							return w.Diffs(nil)
 						}
 						return nil

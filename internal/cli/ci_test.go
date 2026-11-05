@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -100,7 +99,7 @@ spec:
 		t.Helper()
 		out, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--changed-since", "HEAD", "--repo-root", root, "-o", "json")
 		var cs []struct{ App string }
-		if err := json.Unmarshal([]byte(out), &cs); err != nil {
+		if err := decodeReport(out, &cs); err != nil {
 			t.Fatalf("decode: %v\n%s", err, out)
 		}
 		var apps []string

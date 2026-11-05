@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOutputFileReplacesStdout(t *testing.T) {
@@ -54,6 +55,41 @@ func TestOutputFileSeveralFormatsInOneRun(t *testing.T) {
 	}
 	if err := json.Unmarshal(data, &doc); err != nil || doc.Version != "2.1.0" || len(doc.Runs[0].Results) == 0 {
 		t.Errorf("sarif file (%v):\n%s", err, data)
+	}
+}
+
+func TestJSONReportEnvelope(t *testing.T) {
+	type envelope struct {
+		SchemaVersion int               `json:"schemaVersion"`
+		Deadvalues    string            `json:"deadvalues"`
+		Command       string            `json:"command"`
+		GeneratedAt   string            `json:"generatedAt"`
+		Results       []json.RawMessage `json:"results"`
+	}
+	decode := func(data string) envelope {
+		t.Helper()
+		var e envelope
+		if err := json.Unmarshal([]byte(data), &e); err != nil {
+			t.Fatalf("%v\n%s", err, data)
+		}
+		if _, err := time.Parse(time.RFC3339, e.GeneratedAt); err != nil || e.SchemaVersion != 1 || e.Deadvalues != "test" {
+			t.Errorf("envelope (%v):\n%s", err, data)
+		}
+		return e
+	}
+	file := filepath.Join(t.TempDir(), "report.json")
+	out, _ := runCLI(t, "check", "--chart", casesChart, "-f", casesValues, "-o", "json", "--output-file", "json="+file)
+	e := decode(out)
+	if e.Command != "check" || len(e.Results) != 1 {
+		t.Errorf("one app is still a list of one result, got %q with %d", e.Command, len(e.Results))
+	}
+	data, _ := os.ReadFile(file)
+	if f := decode(string(data)); f.GeneratedAt != e.GeneratedAt {
+		t.Errorf("stdout and the file come from the same run: %s, %s", e.GeneratedAt, f.GeneratedAt)
+	}
+	out, _ = runCLI(t, "explain", "service.prot", "--chart", casesChart, "-f", casesValues, "-o", "json")
+	if e := decode(out); e.Command != "explain" || len(e.Results) != 1 {
+		t.Errorf("explain: %q with %d results", e.Command, len(e.Results))
 	}
 }
 
