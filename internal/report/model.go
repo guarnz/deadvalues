@@ -5,6 +5,7 @@ package report
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -333,6 +334,7 @@ type Change struct {
 	Detail     string          `json:"detail"`
 	Origins    []values.Origin `json:"origins,omitempty"`
 	Ignored    bool            `json:"ignored,omitempty"`
+	Template   string          `json:"template,omitempty"`
 
 	kind diff.Kind
 }
@@ -378,6 +380,50 @@ func NewDiff(app, appFile, chart, from, to string, set *values.Set, ts []diff.Tr
 
 func FailedDiff(app string, err error) *Diff {
 	return &Diff{App: app, Error: err.Error(), Counts: map[string]int{}}
+}
+
+// RejectedDiff is a bump whose new chart does not render with the values that rendered the old
+// one: one BREAKING change with no key, the chart's message and where it comes from.
+func RejectedDiff(app, appFile, chart, from, to string, set *values.Set, err error, renders int64, took time.Duration) *Diff {
+	msg, template := renderFailure(err)
+	detail := "the new chart does not render with your values: " + msg
+	if template != "" {
+		detail = "the new chart does not render with your values (" + template + "): " + msg
+	}
+	return &Diff{
+		App: app, AppFile: appFile, Chart: chart, From: from, To: to,
+		Values: append([]string(nil), set.Sources...), Renders: renders, Millis: took.Milliseconds(),
+		Changes: []Change{{Path: []string{}, Kind: diff.Breaking.String(), Detail: detail, Template: template, kind: diff.Breaking}},
+		Counts:  map[string]int{diff.Breaking.String(): 1},
+	}
+}
+
+var templateAt = regexp.MustCompile(`(?:execution error at \(|template: )([^():\s]+):(\d+):\d+\)?: `)
+
+// renderFailure splits a Helm render error into the chart's message, on one line, and the
+// template:line that raised it, or values.schema.json when the schema rejected the values.
+func renderFailure(err error) (msg, template string) {
+	msg = err.Error()
+	if m := templateAt.FindStringSubmatchIndex(msg); m != nil {
+		return oneLine(msg[m[1]:]), msg[m[2]:m[3]] + ":" + msg[m[4]:m[5]]
+	}
+	if strings.Contains(msg, "values don't meet the specifications of the schema") {
+		return oneLine(msg), "values.schema.json"
+	}
+	return oneLine(msg), ""
+}
+
+var banner = regexp.MustCompile(`^#{3,}|#{3,}$`)
+
+// oneLine joins a chart's message, dropping the ### banners some charts draw around it.
+func oneLine(s string) string {
+	var parts []string
+	for _, l := range strings.Split(s, "\n") {
+		if l = strings.TrimSpace(banner.ReplaceAllString(strings.TrimSpace(l), "")); l != "" {
+			parts = append(parts, l)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func transitionDetail(t diff.Transition) string {
