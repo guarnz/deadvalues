@@ -93,7 +93,11 @@ func (w *Writer) diffsMarkdown(ds []*Diff) {
 		}
 		fmt.Fprint(w.Out, "| Change | Key | Detail | Source |\n|---|---|---|---|\n")
 		for _, c := range rows {
-			fmt.Fprintf(w.Out, "| %s | `%s` | %s | %s |\n", mdStatus(c.Kind), c.Key, mdEscape(c.Detail), mdEscape(w.location(c.Origins)))
+			key := ""
+			if c.Key != "" {
+				key = "`" + c.Key + "`"
+			}
+			fmt.Fprintf(w.Out, "| %s | %s | %s | %s |\n", mdStatus(c.Kind), key, mdEscape(c.Detail), mdEscape(w.location(c.Origins)))
 		}
 		fmt.Fprintf(w.Out, "\n**%d breaking, %d pinned, %d changed, %d fixed**\n\n",
 			d.Counts["BREAKING"], d.Counts["PINNED"], d.Counts["CHANGED"], d.Counts["FIXED"])

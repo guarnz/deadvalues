@@ -204,7 +204,7 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 			return nil, fmt.Errorf("%s: baseline render failed with placeholders at %s for valuesFrom sources not in the repository (mark them optional or skip the app): %w",
 				r.Label(), displayPaths(j.placeholders), err)
 		}
-		return nil, fmt.Errorf("%s: baseline render failed: %w", r.Label(), err)
+		return nil, &renderError{label: r.Label(), err: err}
 	}
 	if len(apis) > 0 {
 		keepBootstrapKeys(withoutAPIs, r, j.vals.Values, res)
@@ -230,6 +230,29 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 		a.notes = append(a.notes, "dependencies could not be fetched ("+strings.Join(missing, ", ")+"); keys read only by them can look dead")
 	}
 	return a, nil
+}
+
+// renderError is a chart that loads but does not render with the values, as told by the chart:
+// a fail, a required value or the schema.
+type renderError struct {
+	label string
+	err   error
+}
+
+func (e *renderError) Error() string { return e.label + ": baseline render failed: " + e.err.Error() }
+
+func (e *renderError) Unwrap() error { return e.err }
+
+// networkFailure reports whether a render failed on the network, as a schema whose $ref is
+// downloaded, and not on the values.
+func networkFailure(err error) bool {
+	msg := err.Error()
+	for _, s := range []string{"HTTP request failed", "dial tcp", "connection refused", "no such host", "i/o timeout", "network is unreachable", "TLS handshake"} {
+		if strings.Contains(msg, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // keepBootstrapKeys revives dead keys that matter while a CRD is not there yet, such as

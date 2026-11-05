@@ -88,7 +88,7 @@ func (w *Writer) diffAnnotations(ds []*Diff) []annotation {
 				rule:    strings.ToLower(c.Kind),
 				level:   level,
 				title:   "deadvalues: " + c.Kind,
-				message: fmt.Sprintf("%s (%s %s → %s): %s %s", d.App, d.Chart, d.From, d.To, c.Key, c.Detail),
+				message: fmt.Sprintf("%s (%s %s → %s): %s", d.App, d.Chart, d.From, d.To, strings.TrimSpace(c.Key+" "+c.Detail)),
 				file:    f,
 				line:    line,
 			})

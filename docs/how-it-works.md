@@ -56,6 +56,8 @@ A ref that does not exist locally is looked up on `origin` (`--head renovate/exa
 
 `scan --changed-since <ref>` compares with the point where the branch left `<ref>` (their merge base), as a pull request does, so changes that reached `<ref>` after the branch started are not counted. An app is picked when one of its files changed, or when what it is analyzed with differs from that point: chart version, final values, release name or namespace. A version in a separate `OCIRepository` file or a variable from a parent `Kustomization` picks the apps it reaches, and a comment in that file picks none. If that point cannot be read, only the changed files select apps.
 
+A new chart version that does not render with the values that rendered the old one (a `fail` in a template, a required value, the schema) is a `BREAKING` change with the chart's message and the template line, not an error: it is the bump that breaks the release. If neither version renders, or the render failed on the network, it is an error.
+
 An app that fails to load (its chart source is not found, or its kustomize overlay does not build) is reported by `scan --changed-since` only when a change touches its file or overlay, and by `diff --base` only when the change causes the error, not when it was already there at the base. A full `scan` reports every one of them.
 
 It does not matter where the bump happened: an Application's `targetRevision`, a HelmRelease `version`, an `OCIRepository` tag or an overlay patch.

@@ -286,10 +286,10 @@ func TestFluxPruneEditsHelmRelease(t *testing.T) {
 
 // helmRepo serves the synthetic chart in versions 0.1.0 and 0.2.0 as an HTTP
 // Helm repository.
-func helmRepo(t *testing.T) *httptest.Server {
+func helmRepo(t *testing.T, extra ...string) *httptest.Server {
 	t.Helper()
 	charts := t.TempDir()
-	for _, dir := range []string{casesChart, "../../testdata/charts/cases-v2"} {
+	for _, dir := range append([]string{casesChart, "../../testdata/charts/cases-v2"}, extra...) {
 		c, err := loader.Load(dir)
 		if err != nil {
 			t.Fatal(err)
