@@ -44,7 +44,7 @@ dv() {
 rows_jq=$(cat <<'EOF'
 def rank: {"BREAKING":0,"ERROR":1,"PINNED":2,"DEAD":3,"CHANGED":4,"FIXED":5,"REDUNDANT":6,"CONDITIONAL":7,"NOT ANALYZED":8,"NOT APPLIED":9,"NOT YET":10}[.] // 11;
 def rel: if $ws != "" and startswith($ws + "/") then .[($ws | length) + 1:] else . end;
-[.[] | if type == "array" then .[] else . end] as $reports
+[.[] | if type == "object" and has("schemaVersion") then .results[] elif type == "array" then .[] else . end] as $reports
 | [$reports[] | . as $r
     | if (.error // "") != "" then {app: .app, file: (.appFile // ""), head: (.chart // ""), kind: "ERROR", key: "", detail: .error, src: null}
       elif (.skipped // "") != "" then {app: .app, file: (.appFile // ""), head: "", kind: ({"unsupported":"NOT YET","notApplied":"NOT APPLIED"}[.skipKind // ""] // "NOT ANALYZED"), key: "", detail: .skipped, src: null}
@@ -100,7 +100,7 @@ EOF
 problems_jq=$(cat <<'EOF'
 ({"breaking": ["BREAKING"], "pinned": ["BREAKING", "PINNED"], "changed": ["BREAKING", "PINNED", "CHANGED"],
   "dead": ["DEAD"], "conditional": ["DEAD", "CONDITIONAL"], "redundant": ["DEAD", "CONDITIONAL", "REDUNDANT"]}[$level] // []) as $kinds
-| [.[] | if type == "array" then .[] else . end
+| [.[] | if type == "object" and has("schemaVersion") then .results[] elif type == "array" then .[] else . end
     | (.changes[]? | select(.ignored != true) | .kind),
       (.keys[]? | select(.ignored != true and (.usedBy // "") == "" and ((.sharedWith // []) | length) == 0) | .status | split(" ")[0])
     | select(. as $k | $kinds | index($k))]
@@ -296,7 +296,7 @@ if [[ "$status" -ge 2 ]] && [[ "$fail_on_error" = "false" ]] && [[ -z "$blocker"
     if [[ "$rc" -eq 1 ]]; then
       fail=$((fail > 1 ? fail : 1))
     elif [[ "$rc" -ge 2 ]]; then
-      if [[ ! -s "$work/$i.json" ]] || [[ "$(jq -s '[.[] | if type == "array" then .[] else . end | select((.error // "") != "")] | length' "$work/$i.json")" -eq 0 ]]; then
+      if [[ ! -s "$work/$i.json" ]] || [[ "$(jq -s '[.[] | if type == "object" and has("schemaVersion") then .results[] elif type == "array" then .[] else . end | select((.error // "") != "")] | length' "$work/$i.json")" -eq 0 ]]; then
         fail=2
       elif [[ "$(jq -s --arg level "$(cat "$work/$i.level")" "$problems_jq" "$work/$i.json")" -gt 0 ]]; then
         fail=$((fail > 1 ? fail : 1))

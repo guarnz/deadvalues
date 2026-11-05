@@ -202,7 +202,7 @@ Two composite actions in this repository: `guarnz/deadvalues@v0` (`action.yml`) 
 
 **`args`** runs any deadvalues command with the same report. It is split with `read -ra`, never `eval`, so a value built from pull request data cannot run shell code.
 
-**The report** opens with a GitHub alert (`CAUTION`, `WARNING`, `NOTE`), lists every command with :x:/:warning:/:white_check_mark: and shows the sections with findings. Which commands have findings is read from the **JSON** report with `jq`: the JSON is a stable contract, the Markdown is not. The pull request comment is found by a hidden marker and updated in place; above ~60 KB it is cut with a link to the job summary, because GitHub rejects comments over 65 KB. The run step always exits 0 and a last step fails the job, so the comment is posted even when the check fails.
+**The report** opens with a GitHub alert (`CAUTION`, `WARNING`, `NOTE`), lists every command with :x:/:warning:/:white_check_mark: and shows the sections with findings. Which commands have findings is read from the **JSON** report with `jq`: the JSON is a stable contract, versioned by `schemaVersion` ([docs/json.md](docs/json.md)), the Markdown is not. The script also reads the format before the envelope, so a newer action works with an older binary. The pull request comment is found by a hidden marker and updated in place; above ~60 KB it is cut with a link to the job summary, because GitHub rejects comments over 65 KB. The run step always exits 0 and a last step fails the job, so the comment is posted even when the check fails.
 
 ```
 Pull request (Renovate: webapp 0.1.0 → 0.2.0)

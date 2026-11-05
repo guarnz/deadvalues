@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -55,10 +57,37 @@ type jsonCheck struct {
 	Counts map[string]int
 }
 
+// decodeReport decodes the results of a JSON report into v: a slice takes them all,
+// anything else the only one.
+func decodeReport(out string, v any) error {
+	var env struct {
+		SchemaVersion int             `json:"schemaVersion"`
+		Command       string          `json:"command"`
+		Results       json.RawMessage `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		return err
+	}
+	if env.SchemaVersion != report.SchemaVersion || env.Command == "" {
+		return fmt.Errorf("no report envelope")
+	}
+	if reflect.TypeOf(v).Elem().Kind() == reflect.Slice {
+		return json.Unmarshal(env.Results, v)
+	}
+	var results []json.RawMessage
+	if err := json.Unmarshal(env.Results, &results); err != nil {
+		return err
+	}
+	if len(results) != 1 {
+		return fmt.Errorf("%d results, want 1", len(results))
+	}
+	return json.Unmarshal(results[0], v)
+}
+
 func statuses(t *testing.T, out string) (jsonCheck, map[string]jsonKey) {
 	t.Helper()
 	var c jsonCheck
-	if err := json.Unmarshal([]byte(out), &c); err != nil {
+	if err := decodeReport(out, &c); err != nil {
 		t.Fatalf("decode: %v\n%s", err, out)
 	}
 	m := map[string]jsonKey{}
@@ -259,7 +288,7 @@ func TestExplain(t *testing.T) {
 	var e struct {
 		Changes []struct{ Object, Field, Before, After string }
 	}
-	if err := json.Unmarshal([]byte(out), &e); err != nil {
+	if err := decodeReport(out, &e); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.Changes) != 1 || e.Changes[0].Object != "Deployment/app" || e.Changes[0].Field != ".spec.replicas" ||

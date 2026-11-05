@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -212,7 +211,7 @@ func TestLocalChartWithoutItsDependencies(t *testing.T) {
 			t.Fatalf("%s: exit %d\n%s", tt.repository, code, out)
 		}
 		var c fluxCheck
-		if err := json.Unmarshal([]byte(out), &c); err != nil {
+		if err := decodeReport(out, &c); err != nil {
 			t.Fatalf("%v\n%s", err, out)
 		}
 		if got, _ := c.key("cases.replicas"); got != tt.want {
@@ -399,7 +398,7 @@ spec:
 		t.Fatalf("exit %d\n%s", code, out)
 	}
 	var checks []jsonCheck
-	if err := json.Unmarshal([]byte(out), &checks); err != nil {
+	if err := decodeReport(out, &checks); err != nil {
 		t.Fatalf("decode: %v\n%s", err, out)
 	}
 	byApp := map[string]jsonCheck{}

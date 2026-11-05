@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,15 +22,11 @@ type anyCheck struct {
 
 func decodeChecks(t *testing.T, out string) []anyCheck {
 	t.Helper()
-	var many []anyCheck
-	if err := json.Unmarshal([]byte(out), &many); err == nil {
-		return many
-	}
-	var one anyCheck
-	if err := json.Unmarshal([]byte(out), &one); err != nil {
+	var checks []anyCheck
+	if err := decodeReport(out, &checks); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	return []anyCheck{one}
+	return checks
 }
 
 // sharedRepo: two Applications load values/shared.yaml; "one" renders cases and loads
