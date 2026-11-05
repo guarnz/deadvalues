@@ -144,7 +144,7 @@ A chart without its `charts/` directory renders almost nothing, so the dependenc
 
 ## 5. `diff` and git
 
-`diff` probes the same values against two chart versions and compares the status of every key (`BREAKING`, `PINNED`, `CHANGED`, `FIXED`). The versions can be given (`--from`/`--to`) or come from git:
+`diff` probes the same values against two chart versions and compares the status of every key (`BREAKING`, `PINNED`, `CHANGED`, `FIXED`). When the old version renders and the new one rejects the values, the whole bump is one `BREAKING` change with the chart's message and template line, since that is the worst case of "is this bump safe?"; an error is left for what deadvalues could not do (download, network, a chart that renders in neither version). The versions can be given (`--from`/`--to`) or come from git:
 
 | Flags | Before | After |
 |---|---|---|

@@ -60,6 +60,36 @@ func TestDiffMarkdownAndGithub(t *testing.T) {
 	}
 }
 
+func TestDiffChartThatRejectsTheValues(t *testing.T) {
+	rejecting := filepath.Join(t.TempDir(), "cases")
+	copyDir(t, casesChart, rejecting)
+	writeFile(t, filepath.Join(rejecting, "Chart.yaml"), "apiVersion: v2\nname: cases\nversion: 0.3.0\ndependencies:\n  - name: sub\n    version: 0.1.0\n    condition: sub.enabled\n")
+	writeFile(t, filepath.Join(rejecting, "templates", "check.yaml"), "{{- if .Values.service.prot }}{{ fail \"service.prot was renamed to service.port\" }}{{ end }}\n")
+	srv := helmRepo(t, rejecting)
+	args := []string{"diff", "--repo", srv.URL, "--chart", "cases", "--from", "0.1.0", "--to", "0.3.0", "-f", casesValues}
+
+	out, code := runCLI(t, append(args, "-o", "json")...)
+	if code != 1 {
+		t.Fatalf("exit %d, want 1: a chart that rejects the values is breaking, not an error\n%s", code, out)
+	}
+	var d struct {
+		Error   string
+		Changes []struct{ Key, Kind, Detail, Template string }
+	}
+	if err := decodeReport(out, &d); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if d.Error != "" || len(d.Changes) != 1 || d.Changes[0].Kind != "BREAKING" || d.Changes[0].Key != "" ||
+		d.Changes[0].Template != "cases/templates/check.yaml:1" || !strings.HasSuffix(d.Changes[0].Detail, ": service.prot was renamed to service.port") {
+		t.Errorf("want one BREAKING change with the chart's message and template:\n%s", out)
+	}
+
+	out, _ = runCLI(t, append(args, "-o", "markdown")...)
+	if !strings.Contains(out, "| **BREAKING** |  | the new chart does not render with your values (cases/templates/check.yaml:1): service.prot was renamed") {
+		t.Errorf("markdown:\n%s", out)
+	}
+}
+
 func TestScanChangedSince(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")

@@ -463,6 +463,10 @@ func (g *globals) diff(ctx context.Context, j job, oldRef, newRef source.Ref) *r
 		return fail(err)
 	}
 	newA, err := g.analyze(ctx, j, newRef)
+	var rejected *renderError
+	if errors.As(err, &rejected) && !networkFailure(err) {
+		return report.RejectedDiff(j.name, j.appFile, oldA.renderer.Name(), oldA.renderer.Version(), to, j.vals, rejected.err, oldA.result.Renders, time.Since(start))
+	}
 	if err != nil {
 		return fail(err)
 	}

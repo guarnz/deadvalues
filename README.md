@@ -179,7 +179,7 @@ Removes keys by deleting only their lines, so comments and formatting stay intac
 
 | `diff` | Meaning |
 |---|---|
-| `BREAKING` | Worked before, has no effect now |
+| `BREAKING` | Worked before, has no effect now; or the new chart does not render with your values, with the chart's message |
 | `PINNED` | Was equal to the default; the default changed, so your value now pins the old behavior |
 | `CHANGED` | A default you do not set changed and alters the manifests |
 | `FIXED` | Was dead, works now |
