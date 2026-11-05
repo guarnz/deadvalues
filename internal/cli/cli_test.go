@@ -163,6 +163,43 @@ func TestCheckAPIVersions(t *testing.T) {
 	}
 }
 
+func TestDeclaredAPIKeepsBootstrapKeys(t *testing.T) {
+	dir := t.TempDir()
+	chart := filepath.Join(dir, "chart")
+	writeFile(t, filepath.Join(chart, "Chart.yaml"), "apiVersion: v2\nname: repro\nversion: 0.1.0\n")
+	writeFile(t, filepath.Join(chart, "values.yaml"), "serviceMonitor:\n  enabled: false\n  trustCRDsExist: false\n")
+	writeFile(t, filepath.Join(chart, "templates", "validate.yaml"), `{{- if .Values.serviceMonitor.enabled }}
+  {{- if not (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+    {{- if not .Values.serviceMonitor.trustCRDsExist }}
+      {{- fail "ServiceMonitor requires monitoring.coreos.com/v1 CRDs" }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+`)
+	writeFile(t, filepath.Join(chart, "templates", "configmap.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\ndata:\n  monitored: {{ .Values.serviceMonitor.enabled | quote }}\n")
+	vals := filepath.Join(dir, "values.yaml")
+	writeFile(t, vals, "serviceMonitor:\n  enabled: true\n  trustCRDsExist: true\n")
+	status := func(out string) string {
+		_, keys := statuses(t, out)
+		return keys["serviceMonitor.trustCRDsExist"].Status
+	}
+
+	out, _ := runCLI(t, "check", "--chart", chart, "-f", vals, "-o", "json", "--fail-on", "none", "--api-versions", "monitoring.coreos.com/v1/ServiceMonitor")
+	if s := status(out); s != "ALIVE" {
+		t.Errorf("with the API declared, trustCRDsExist = %s: it matters until the CRDs are installed", s)
+	}
+	cfg := filepath.Join(dir, "config.yaml")
+	writeFile(t, cfg, "apiVersions:\n  - monitoring.coreos.com/v1/ServiceMonitor\n")
+	out, _ = runWithConfig(t, cfg, "check", "--chart", chart, "-f", vals, "-o", "json", "--fail-on", "none")
+	if s := status(out); s != "ALIVE" {
+		t.Errorf("with the API in .deadvalues.yaml, trustCRDsExist = %s", s)
+	}
+	out, _ = runCLI(t, "check", "--chart", chart, "-f", vals, "-o", "json", "--fail-on", "none")
+	if s := status(out); s != "REQUIRED" {
+		t.Errorf("without the API, trustCRDsExist = %s, want REQUIRED", s)
+	}
+}
+
 var timing = regexp.MustCompile(`\d+ renders in [^,\n]+(, \d+ random fields ignored)?`)
 
 func TestCheckTableGolden(t *testing.T) {

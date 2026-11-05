@@ -3,6 +3,7 @@ package render
 import (
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -277,6 +278,29 @@ func TestKindAPIServesItsGroupVersion(t *testing.T) {
 		if missing := r.MissingAPIVersions(); len(missing) != 0 {
 			t.Errorf("%s: MissingAPIVersions() = %v, want none", name, missing)
 		}
+	}
+}
+
+func TestDeclaredAPIVersionsCanBeTakenAway(t *testing.T) {
+	c := &chart.Chart{
+		Metadata: &chart.Metadata{APIVersion: chart.APIVersionV2, Name: "demo", Version: "0.1.0"},
+		Templates: []*common.File{
+			{Name: "templates/monitor.yaml", Data: []byte(`{{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" }}kind: ServiceMonitor{{ end }}{{ if .Capabilities.APIVersions.Has "apps/v1" }}apps{{ end }}`)},
+		},
+	}
+	r, err := New(c, Options{APIVersions: []string{"monitoring.coreos.com/v1/ServiceMonitor", "example.com/v1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := r.DeclaredAPIVersions(); !slices.Equal(got, []string{"monitoring.coreos.com/v1"}) {
+		t.Errorf("DeclaredAPIVersions() = %v: only what the chart checks and the configuration adds", got)
+	}
+	out, err := r.WithoutAPIVersions(r.DeclaredAPIVersions()).Render(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := out["demo/templates/monitor.yaml"]; got != "apps" {
+		t.Errorf("without the group/version, every form of it goes and built-in APIs stay, got %q", got)
 	}
 }
 

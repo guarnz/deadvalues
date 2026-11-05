@@ -178,7 +178,8 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 	if err != nil {
 		return nil, err
 	}
-	withoutAPIs := r
+	declared := r.DeclaredAPIVersions()
+	withoutAPIs := r.WithoutAPIVersions(declared)
 	apis := g.repoAPIs(ctx, j, r.MissingAPIVersions())
 	if len(apis) > 0 {
 		r = r.WithAPIVersions(apis)
@@ -206,7 +207,7 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 		}
 		return nil, &renderError{label: r.Label(), err: err}
 	}
-	if len(apis) > 0 {
+	if len(apis) > 0 || len(declared) > 0 {
 		keepBootstrapKeys(withoutAPIs, r, j.vals.Values, res)
 	}
 	a := &analysis{renderer: r, defaults: defaults, result: res, took: time.Since(start)}
