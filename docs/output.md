@@ -4,6 +4,7 @@
 
 `-o table | json | markdown | sarif | github`
 
+- `json` is one object with a versioned envelope and the results in a list, for scripts; the fields and the versioning rules are in [JSON output](json.md).
 - `markdown` is meant for pull request comments and CI job summaries; the [GitHub Action](github-action.md) builds its report from it.
 - `sarif` feeds GitHub code scanning.
 - `github` prints workflow annotations on the exact line of the values file: `::error` for `BREAKING` and for a target that cannot be analyzed, `::notice` for `REDUNDANT`, `FIXED` and a target listed as not analyzed, `::warning` for the rest.

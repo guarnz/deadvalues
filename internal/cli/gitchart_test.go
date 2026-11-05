@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +9,7 @@ import (
 
 func mustDecode(t *testing.T, out string, v any) {
 	t.Helper()
-	if err := json.Unmarshal([]byte(out), v); err != nil {
+	if err := decodeReport(out, v); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 }

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -58,7 +57,7 @@ func TestFluxScanBuildsOverlays(t *testing.T) {
 		t.Fatalf("exit %d, want 1 (service.prot is dead)\n%s", code, out)
 	}
 	var checks []fluxCheck
-	if err := json.Unmarshal([]byte(out), &checks); err != nil {
+	if err := decodeReport(out, &checks); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	byApp := map[string]fluxCheck{}
@@ -111,7 +110,7 @@ spec:
 `)
 	out, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
 	var checks []fluxCheck
-	if err := json.Unmarshal([]byte(out), &checks); err != nil {
+	if err := decodeReport(out, &checks); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	var apps []string
@@ -174,7 +173,7 @@ spec:
 			Value interface{} `json:"value"`
 		} `json:"keys"`
 	}
-	if err := json.Unmarshal([]byte(out), &c); err != nil {
+	if err := decodeReport(out, &c); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	got := map[string]interface{}{}
@@ -213,7 +212,7 @@ func TestScanSkipByAnyNameOrDirectory(t *testing.T) {
 		out, _ := runCLI(t, args...)
 		var checks []fluxCheck
 		if strings.TrimSpace(out) != "" {
-			if err := json.Unmarshal([]byte(out), &checks); err != nil {
+			if err := decodeReport(out, &checks); err != nil {
 				t.Fatalf("%v\n%s", err, out)
 			}
 		}
@@ -251,7 +250,7 @@ func TestFluxCheckApp(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, out)
 	}
 	var c fluxCheck
-	if err := json.Unmarshal([]byte(out), &c); err != nil {
+	if err := decodeReport(out, &c); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if c.App != "infra/standalone" {
@@ -364,7 +363,7 @@ spec:
 		App, From, To string
 		Changes       []struct{ Key, Kind string }
 	}
-	if err := json.Unmarshal([]byte(out), &d); err != nil {
+	if err := decodeReport(out, &d); err != nil {
 		t.Fatalf("expected a single diff (unchanged release skipped): %v\n%s", err, out)
 	}
 	if d.App != "web/cases" || d.From != "0.1.0" || d.To != "0.2.0" {
@@ -449,7 +448,7 @@ spec:
 		t.Helper()
 		out, code := runCLI(t, append([]string{"diff"}, append(args, "--repo-root", root, "-o", "json")...)...)
 		var d diffOut
-		if err := json.Unmarshal([]byte(out), &d); err != nil {
+		if err := decodeReport(out, &d); err != nil {
 			t.Fatalf("%s: %v\n%s", name, err, out)
 		}
 		if code != 1 || d.From != "0.1.0" || d.To != "0.2.0" || len(d.Changes) == 0 || d.Changes[0].Key != "labels.team" || d.Changes[0].Kind != "BREAKING" {
@@ -524,7 +523,7 @@ spec:
 		AppFile, From, To string
 		Changes           []struct{ Key, Kind string }
 	}
-	if err := json.Unmarshal([]byte(out), &d); err != nil {
+	if err := decodeReport(out, &d); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if code != 1 || d.From != "0.1.0" || d.To != "0.2.0" || len(d.Changes) == 0 || d.Changes[0].Key != "labels.team" || d.Changes[0].Kind != "BREAKING" {

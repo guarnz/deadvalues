@@ -7,20 +7,35 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/guarnz/deadvalues/internal/values"
 )
 
 var Formats = []string{"table", "json", "markdown", "sarif", "github"}
 
+// SchemaVersion of the JSON output: it goes up only when a field is removed, renamed or
+// changes meaning, never for a new field.
+const SchemaVersion = 1
+
 type Writer struct {
-	Out     io.Writer
-	Format  string
-	Paint   Painter
-	Alive   bool
-	Details bool
-	BaseDir string
-	Version string
+	Out       io.Writer
+	Format    string
+	Paint     Painter
+	Alive     bool
+	Details   bool
+	BaseDir   string
+	Version   string
+	Generated time.Time
+}
+
+// envelope wraps every JSON report, so the root is always an object and results always a list.
+type envelope struct {
+	SchemaVersion int         `json:"schemaVersion"`
+	Deadvalues    string      `json:"deadvalues"`
+	Command       string      `json:"command"`
+	GeneratedAt   string      `json:"generatedAt"`
+	Results       interface{} `json:"results"`
 }
 
 // relativize rewrites file paths relative to BaseDir so every format, JSON
@@ -51,10 +66,14 @@ func (w *Writer) Checks(cs []*Check, scan bool) error {
 	}
 	switch w.Format {
 	case "json":
-		if !scan && len(cs) == 1 {
-			return w.json(cs[0])
+		command := "check"
+		if scan {
+			command = "scan"
 		}
-		return w.json(cs)
+		if cs == nil {
+			cs = []*Check{}
+		}
+		return w.envelope(command, cs)
 	case "markdown":
 		w.checksMarkdown(cs, scan)
 	case "sarif":
@@ -78,10 +97,10 @@ func (w *Writer) Diffs(ds []*Diff) error {
 	}
 	switch w.Format {
 	case "json":
-		if len(ds) == 1 {
-			return w.json(ds[0])
+		if ds == nil {
+			ds = []*Diff{}
 		}
-		return w.json(ds)
+		return w.envelope("diff", ds)
 	case "markdown":
 		w.diffsMarkdown(ds)
 	case "sarif":
@@ -97,10 +116,10 @@ func (w *Writer) Diffs(ds []*Diff) error {
 func (w *Writer) Explains(es []*Explain) error {
 	switch w.Format {
 	case "json":
-		if len(es) == 1 {
-			return w.json(es[0])
+		if es == nil {
+			es = []*Explain{}
 		}
-		return w.json(es)
+		return w.envelope("explain", es)
 	case "markdown":
 		for _, e := range es {
 			fmt.Fprintf(w.Out, "### `%s` — `%s` = `%s`\n\n", e.App, e.Key, short(e.Value))
@@ -153,6 +172,20 @@ func (w *Writer) Explains(es []*Explain) error {
 		}
 	}
 	return nil
+}
+
+func (w *Writer) envelope(command string, results interface{}) error {
+	generated := w.Generated
+	if generated.IsZero() {
+		generated = time.Now()
+	}
+	return w.json(envelope{
+		SchemaVersion: SchemaVersion,
+		Deadvalues:    w.Version,
+		Command:       command,
+		GeneratedAt:   generated.UTC().Format(time.RFC3339),
+		Results:       results,
+	})
 }
 
 func (w *Writer) json(v interface{}) error {
