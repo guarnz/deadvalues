@@ -50,6 +50,8 @@ type Renderer struct {
 	// crds holds the objects of each crds/ file of a subchart, read once per chart.
 	crds       map[*common.File]string
 	skipSchema bool
+	// declared are the APIs the configuration lists, which a cluster may not serve yet.
+	declared []string
 }
 
 func New(c *chart.Chart, o Options) (*Renderer, error) {
@@ -81,6 +83,7 @@ func New(c *chart.Chart, o Options) (*Renderer, error) {
 		opts:       common.ReleaseOptions{Name: o.Release, Namespace: o.Namespace, Revision: 1, IsInstall: true},
 		caps:       caps,
 		skipSchema: o.SkipSchemaValidation,
+		declared:   withGroupVersions(o.APIVersions),
 	}
 	if !o.SkipCRDs {
 		r.crds = subchartCRDs(c)
@@ -304,7 +307,29 @@ func withPlaceholders(c *chart.Chart, paths [][]string) (*chart.Chart, error) {
 func (r *Renderer) WithAPIVersions(apis []string) *Renderer {
 	caps := r.caps.Copy()
 	caps.APIVersions = append(append(common.VersionSet{}, r.caps.APIVersions...), withGroupVersions(apis)...)
-	return &Renderer{chart: r.chart, opts: r.opts, caps: caps, crds: r.crds, skipSchema: r.skipSchema}
+	return &Renderer{chart: r.chart, opts: r.opts, caps: caps, crds: r.crds, skipSchema: r.skipSchema, declared: r.declared}
+}
+
+// WithoutAPIVersions returns a renderer for a cluster that does not serve the group/version of
+// each of apis yet, as before its CRDs are installed.
+func (r *Renderer) WithoutAPIVersions(apis []string) *Renderer {
+	var gvs []string
+	for _, a := range apis {
+		gvs = append(gvs, groupVersion(a))
+	}
+	caps := r.caps.Copy()
+	caps.APIVersions = slices.DeleteFunc(append(common.VersionSet{}, r.caps.APIVersions...), func(v string) bool {
+		return slices.Contains(gvs, groupVersion(v))
+	})
+	return &Renderer{chart: r.chart, opts: r.opts, caps: caps, crds: r.crds, skipSchema: r.skipSchema, declared: r.declared}
+}
+
+// groupVersion drops the kind of a group/version/Kind entry.
+func groupVersion(api string) string {
+	if i := strings.LastIndex(api, "/"); i > 0 && i < len(api)-1 && unicode.IsUpper(rune(api[i+1])) {
+		return api[:i]
+	}
+	return api
 }
 
 // withGroupVersions adds the group/version of each group/version/Kind entry,
@@ -312,11 +337,9 @@ func (r *Renderer) WithAPIVersions(apis []string) *Renderer {
 func withGroupVersions(apis []string) []string {
 	out := append([]string{}, apis...)
 	for _, a := range apis {
-		i := strings.LastIndex(a, "/")
-		if i <= 0 || i == len(a)-1 || !unicode.IsUpper(rune(a[i+1])) {
-			continue
+		if gv := groupVersion(a); gv != a {
+			out = append(out, gv)
 		}
-		out = append(out, a[:i])
 	}
 	return out
 }
@@ -329,8 +352,6 @@ var (
 	apiLiteral = regexp.MustCompile(`"([a-z0-9-]+(?:\.[a-z0-9-]+)+/v[0-9]+(?:(?:alpha|beta)[0-9]+)?(?:/[A-Z][A-Za-z0-9]*)?)"`)
 )
 
-// MissingAPIVersions lists the APIs the chart checks for that the capabilities lack and still exist;
-// when a check takes its API from a variable, every API quoted in the templates is a candidate.
 // CRDFiles returns the crds/ files of the chart and its subcharts.
 func (r *Renderer) CRDFiles() [][]byte {
 	var out [][]byte
@@ -354,7 +375,20 @@ func (r *Renderer) DeclaresCRD(group string) bool {
 	return walk(r.chart)
 }
 
+// MissingAPIVersions lists the APIs the chart checks for that the capabilities lack and still exist;
+// when a check takes its API from a variable, every API quoted in the templates is a candidate.
 func (r *Renderer) MissingAPIVersions() []string {
+	return r.checkedAPIs(func(v string) bool { return !r.caps.APIVersions.Has(v) })
+}
+
+// DeclaredAPIVersions lists the APIs the chart checks for that only the configuration declares,
+// so they are served only once their CRDs are installed.
+func (r *Renderer) DeclaredAPIVersions() []string {
+	declared := common.VersionSet(r.declared)
+	return r.checkedAPIs(func(v string) bool { return declared.Has(v) && !common.DefaultCapabilities.APIVersions.Has(v) })
+}
+
+func (r *Renderer) checkedAPIs(keep func(string) bool) []string {
 	var files [][]byte
 	var walk func(c *chart.Chart)
 	walk = func(c *chart.Chart) {
@@ -370,7 +404,7 @@ func (r *Renderer) MissingAPIVersions() []string {
 	seen := map[string]bool{}
 	var out []string
 	add := func(v string) {
-		if seen[v] || r.caps.APIVersions.Has(v) || removed(v, r.caps.KubeVersion) {
+		if seen[v] || !keep(v) || removed(v, r.caps.KubeVersion) {
 			return
 		}
 		seen[v] = true
