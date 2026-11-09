@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/fluxcd/pkg/envsubst"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 const substituteDisabled = "kustomize.toolkit.fluxcd.io/substitute: disabled"
