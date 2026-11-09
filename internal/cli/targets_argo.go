@@ -128,6 +128,7 @@ func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([
 			apiVersions: tg.APIVersions,
 			skipCRDs:    tg.SkipCRDs,
 			skipSchema:  tg.SkipSchemaValidation,
+			installOnly: true,
 		}
 		if t != nil && t.release != "" {
 			j.release = t.release

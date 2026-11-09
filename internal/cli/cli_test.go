@@ -200,6 +200,38 @@ func TestDeclaredAPIKeepsBootstrapKeys(t *testing.T) {
 	}
 }
 
+// upgradeChart writes a chart whose hook.enabled only matters on an upgrade, and that fails to
+// upgrade without a password, as the Bitnami charts do.
+func upgradeChart(t *testing.T, dir string) {
+	t.Helper()
+	writeFile(t, filepath.Join(dir, "Chart.yaml"), "apiVersion: v2\nname: hooks\nversion: 0.1.0\n")
+	writeFile(t, filepath.Join(dir, "values.yaml"), "name: app\npassword: \"\"\nhook:\n  enabled: true\n")
+	writeFile(t, filepath.Join(dir, "templates", "configmap.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: {{ .Values.name }}\n")
+	writeFile(t, filepath.Join(dir, "templates", "hook.yaml"), "{{- if .Values.hook.enabled }}{{- if .Release.IsUpgrade }}\napiVersion: batch/v1\nkind: Job\nmetadata:\n  name: pre-upgrade\n{{- end }}{{- end }}\n")
+	writeFile(t, filepath.Join(dir, "templates", "validate.yaml"), "{{- if and .Release.IsUpgrade (not .Values.password) }}{{ fail \"password is required on upgrade\" }}{{ end }}\n")
+}
+
+func TestKeysOnlyAnUpgradeReads(t *testing.T) {
+	dir := t.TempDir()
+	chart := filepath.Join(dir, "chart")
+	upgradeChart(t, chart)
+	for _, tt := range []struct{ values, hook string }{
+		{"name: web\npassword: secret\nhook:\n  enabled: false\nunused: 1\n", "ALIVE"},
+		{"name: web\nhook:\n  enabled: false\nunused: 1\n", "DEAD"},
+	} {
+		vals := filepath.Join(dir, "values.yaml")
+		writeFile(t, vals, tt.values)
+		out, _ := runCLI(t, "check", "--chart", chart, "-f", vals, "-o", "json", "--fail-on", "none")
+		_, keys := statuses(t, out)
+		if s := keys["hook.enabled"].Status; s != tt.hook {
+			t.Errorf("hook.enabled = %s, want %s (an upgrade %s render)\n%s", s, tt.hook, map[string]string{"ALIVE": "can", "DEAD": "cannot"}[tt.hook], out)
+		}
+		if s := keys["unused"].Status; !strings.HasPrefix(s, "DEAD") {
+			t.Errorf("unused = %s: no render reads it", s)
+		}
+	}
+}
+
 var timing = regexp.MustCompile(`\d+ renders in [^,\n]+(, \d+ random fields ignored)?`)
 
 func TestCheckTableGolden(t *testing.T) {
