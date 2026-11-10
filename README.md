@@ -184,7 +184,7 @@ Removes keys by deleting only their lines, so comments and formatting stay intac
 | `CHANGED` | A default you do not set changed and alters the manifests |
 | `FIXED` | Was dead, works now |
 
-Exit code `1` means findings at or above `--fail-on` (`dead` for `check`/`scan`, `breaking` for `diff`), `2` a usage or render error.
+Exit code `1` means findings at or above `--fail-on` (`dead` for `check`/`scan`, `breaking` for `diff`), `2` a usage or render error; `--fail-on-error=false` reports a chart that cannot be rendered or downloaded without exiting 2.
 
 ## GitHub Action
 

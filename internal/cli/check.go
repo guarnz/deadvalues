@@ -13,9 +13,10 @@ var checkLevels = []string{"dead", "conditional", "redundant", "none"}
 
 func newCheckCmd(g *globals) *cobra.Command {
 	var (
-		t      targetFlags
-		failOn string
-		alive  bool
+		t           targetFlags
+		failOn      string
+		failOnError bool
+		alive       bool
 	)
 	cmd := &cobra.Command{
 		Use:   "check",
@@ -57,11 +58,12 @@ files (-f): their chart is then found from the app that uses them.`,
 			if err != nil {
 				return err
 			}
-			return checkExit(reports, level)
+			return g.checkExit(reports, level, g.failOnError(cmd, failOnError))
 		},
 	}
 	t.register(cmd.Flags(), true)
 	cmd.Flags().StringVar(&failOn, "fail-on", "dead", "dead | conditional | redundant | none")
+	cmd.Flags().BoolVar(&failOnError, "fail-on-error", true, failOnErrorUsage)
 	cmd.Flags().BoolVar(&alive, "alive", false, "also list keys that have an effect")
 	return cmd
 }

@@ -29,6 +29,7 @@ deadvalues scan <dir> [flags]
       --changed-since string   scan only targets whose files changed since this git ref
       --details                print per-key findings, not only the summary table
       --fail-on string         dead | conditional | redundant | none (default "dead")
+      --fail-on-error          exit 2 when an app cannot be analyzed; with false it is still reported, and only findings set the exit code (default true)
   -h, --help                   help for scan
       --only strings           scan only these Applications or HelmReleases, by name, namespace/name or the name in the report
       --repo-root string       repository root for $values/, sources and local charts (default: git top-level)

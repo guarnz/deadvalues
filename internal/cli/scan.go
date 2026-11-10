@@ -22,6 +22,7 @@ func newScanCmd(g *globals) *cobra.Command {
 		only, skip   []string
 		changedSince string
 		failOn       string
+		failOnError  bool
 		details      bool
 		repoRoot     string
 	)
@@ -114,13 +115,14 @@ reported as ERROR in the summary.`,
 			if err != nil {
 				return err
 			}
-			return checkExit(reports, level)
+			return g.checkExit(reports, level, g.failOnError(cmd, failOnError))
 		},
 	}
 	cmd.Flags().StringSliceVar(&only, "only", nil, "scan only these Applications or HelmReleases, by name, namespace/name or the name in the report")
 	cmd.Flags().StringSliceVar(&skip, "skip", nil, "skip these Applications or HelmReleases (by name, namespace/name or the name in the report) or directories")
 	cmd.Flags().StringVar(&changedSince, "changed-since", "", "scan only targets whose files changed since this git ref")
 	cmd.Flags().StringVar(&failOn, "fail-on", "dead", "dead | conditional | redundant | none")
+	cmd.Flags().BoolVar(&failOnError, "fail-on-error", true, failOnErrorUsage)
 	cmd.Flags().BoolVar(&details, "details", false, "print per-key findings, not only the summary table")
 	cmd.Flags().StringVar(&repoRoot, "repo-root", "", "repository root for $values/, sources and local charts (default: git top-level)")
 	return cmd

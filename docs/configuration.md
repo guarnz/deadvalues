@@ -8,6 +8,7 @@ apiVersions:
   - monitoring.coreos.com/v1/ServiceMonitor
   - monitoring.coreos.com/v1/PrometheusRule
 failOn: dead
+failOnError: false
 skip:
   - renovate-operator
   - clusters/lab
@@ -47,7 +48,9 @@ In `ignore`, `*` matches one key segment, `**` any number of segments, and a pat
 
 ## Fail on
 
-`failOn` sets the level that makes a command exit with code 1. A command uses it only when the level is valid for it: `dead`, `conditional` or `redundant` for `check` and `scan`, `breaking`, `pinned` or `changed` for `diff`, `none` for all. `--fail-on` wins over it.
+`failOn` sets the level that makes a command exit with code 1. A command uses it only when the level is valid for it: `dead`, `conditional` or `redundant` for `check` and `scan`, `breaking`, `pinned` or `changed` for `diff`, `none` or `false` for all. `--fail-on` wins over it.
+
+`failOnError: false` keeps an app that cannot be analyzed (a chart that does not render or cannot be downloaded) from making `check`, `scan` or `diff` exit with code 2: the error is still reported, and the exit code comes from the findings alone. It applies to the CLI, the pre-commit hook and the GitHub Action; `--fail-on-error` and the action's `fail-on-error` input win over it.
 
 ## Flux
 

@@ -29,6 +29,7 @@ deadvalues check [flags]
       --app string         Argo CD Application or Flux HelmRelease manifest
       --chart string       local chart directory or .tgz, repo/name from "helm repo add", chart name with --repo, or oci:// reference
       --fail-on string     dead | conditional | redundant | none (default "dead")
+      --fail-on-error      exit 2 when an app cannot be analyzed; with false it is still reported, and only findings set the exit code (default true)
   -h, --help               help for check
   -n, --namespace string   release namespace (default: from the manifest, or "default")
       --release string     release name (default: from the manifest, or "release")

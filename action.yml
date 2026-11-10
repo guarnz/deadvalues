@@ -26,8 +26,8 @@ inputs:
     description: "Fail when scan finds: dead | conditional | redundant | none. false is the same as none."
     default: none
   fail-on-error:
-    description: "Fail when an app cannot be analyzed (a chart that does not render or cannot be downloaded): true | false. With false the errors are still reported."
-    default: "true"
+    description: "Fail when an app cannot be analyzed (a chart that does not render or cannot be downloaded): true | false. With false the errors are still reported. Default, failOnError of .deadvalues.yaml, else true."
+    default: ""
   version:
     description: deadvalues release to install (e.g. v0.1.0), or latest. Default, the release matching the ref the action is used at
     default: ""

@@ -2,6 +2,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,7 +18,8 @@ const FileName = ".deadvalues.yaml"
 type Config struct {
 	KubeVersion string   `json:"kubeVersion"`
 	APIVersions []string `json:"apiVersions"`
-	FailOn      string   `json:"failOn"`
+	FailOn      Level    `json:"failOn"`
+	FailOnError *bool    `json:"failOnError"`
 	// Skip adds to --skip: apps by name, or directories relative to the file.
 	Skip   []string `json:"skip"`
 	Ignore []Ignore `json:"ignore"`
@@ -36,6 +38,22 @@ type Ignore struct {
 	App   string   `json:"app"`
 	Chart string   `json:"chart"`
 	Keys  []string `json:"keys"`
+}
+
+// Level is a failOn level; YAML false, unquoted, reads as none.
+type Level string
+
+func (l *Level) UnmarshalJSON(data []byte) error {
+	if string(data) == "false" {
+		*l = "none"
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("failOn must be a level or false, got %s", data)
+	}
+	*l = Level(s)
+	return nil
 }
 
 // Load reads path. A missing file is an error only when required is true.
