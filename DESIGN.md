@@ -183,8 +183,9 @@ The Flux reader produces the same target as the Argo one. The field-by-field rul
 
 ## 7. Outputs
 
-- **One analysis, several writers.** Every format is written from the same result. `--output-file FORMAT=FILE` adds a report without replacing stdout, so CI gets Markdown for the pull request, SARIF for code scanning and the table in the log from one run.
-- **`--output-file` exists because of PowerShell.** `>` decodes the output of other programs with the console code page and corrupts UTF-8 (`—` becomes `ÔÇö`). deadvalues writes the file itself, always UTF-8 and uncolored.
+- **One analysis, several writers.** Every format is written from the same result. `-o table,markdown,sarif --report` keeps the table on screen and writes the others to files, so CI gets Markdown for the pull request, SARIF for code scanning and the table in the log from one run.
+- **`-o` is the format, `--report` the files.** `-o` stays one format on stdout without `--report`, as in Helm and kubectl, so `-o json | jq` keeps working; `--report-path` takes a directory, a base name or one file, as `nmap -oA` and Dependency-Check's `--out` do. Files are named `<command>-<date>`: the time is inside the report, and a second run on the same day replaces the first instead of piling up. `--output-file FORMAT=FILE`, the first form, is still accepted but hidden: the GitHub Action passes it, so the action also works with a release before `--report`.
+- **Files because of PowerShell.** `>` decodes the output of other programs with the console code page and corrupts UTF-8 (`—` becomes `ÔÇö`). deadvalues writes the file itself, always UTF-8 and uncolored.
 - **Exact lines.** The values are parsed twice: into a `map` for Helm and as `yaml.v3` nodes for positions. `github` annotations and SARIF point to the line of the key.
 - **Markdown without emoji.** Statuses are plain text and the ones that fail by default (`DEAD`, `BREAKING`) are bold. Color belongs to whatever shows the report; the GitHub Action adds a GitHub alert on top.
 - **Relative paths.** Every output, JSON included, uses paths relative to the current directory.

@@ -137,7 +137,7 @@ Only apps whose chart version changed between the two sides are diffed. The outp
 deadvalues scan apps
 
 # Every finding, as a Markdown report
-deadvalues scan apps --details -o markdown --output-file report.md
+deadvalues scan apps --details -o markdown --report-path report.md
 
 # Only the apps whose files changed in this branch
 deadvalues scan apps --changed-since origin/main
@@ -221,7 +221,7 @@ No script is needed around it: the action installs the release matching its ref,
 
 ```yaml
 - uses: guarnz/deadvalues/setup@v0
-- run: deadvalues scan apps -o sarif --output-file results.sarif --fail-on none
+- run: deadvalues scan apps --report-path results.sarif --fail-on none
 ```
 
 `args` runs your own command with the same report; `setup` only installs the binary. Inputs, outputs and the report format are in [docs/github-action.md](https://github.com/guarnz/deadvalues/blob/main/docs/github-action.md).

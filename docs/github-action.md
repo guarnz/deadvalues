@@ -19,7 +19,7 @@ steps:
     with:
       fetch-depth: 0
   - uses: guarnz/deadvalues/setup@v0
-  - run: deadvalues scan apps -o sarif --output-file results.sarif --fail-on none
+  - run: deadvalues scan apps --report-path results.sarif --fail-on none
 ```
 
 | Input | Default | Description |

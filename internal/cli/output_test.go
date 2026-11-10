@@ -58,6 +58,63 @@ func TestOutputFileSeveralFormatsInOneRun(t *testing.T) {
 	}
 }
 
+func TestReportFiles(t *testing.T) {
+	chart, values := absPath(t, casesChart), absPath(t, casesValues)
+	check := []string{"check", "--chart", chart, "-f", values}
+	day := time.Now().Format("2006-01-02")
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	out, code := runCLI(t, append(check, "--report")...)
+	if code != 1 || !strings.Contains(out, "service.prot") {
+		t.Errorf("--report keeps the table on stdout and the exit code: %d\n%s", code, out)
+	}
+	for _, name := range []string{"check-" + day + ".json", "check-" + day + ".md", "check-" + day + ".sarif"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("--report without a file format in -o writes all of them: %v", err)
+		}
+	}
+
+	runCLI(t, append(check, "-o", "table,json", "--report-path", "reports/")...)
+	if entries, _ := os.ReadDir(filepath.Join(dir, "reports")); len(entries) != 1 || entries[0].Name() != "check-"+day+".json" {
+		t.Errorf("a directory gets the -o file formats with the default name, got %v", entries)
+	}
+
+	runCLI(t, append(check, "-o", "json,sarif", "--report-path", "out/home")...)
+	for _, name := range []string{"home.json", "home.sarif"} {
+		if _, err := os.Stat(filepath.Join(dir, "out", name)); err != nil {
+			t.Errorf("a base name gets the extension of each format: %v", err)
+		}
+	}
+
+	runCLI(t, append(check, "--report-path", "results.sarif")...)
+	if data, _ := os.ReadFile(filepath.Join(dir, "results.sarif")); !strings.Contains(string(data), `"version": "2.1.0"`) {
+		t.Errorf("a file name with a format's extension is that file:\n%s", data)
+	}
+
+	for _, args := range [][]string{
+		{"-o", "json,sarif"},
+		{"-o", "json,sarif", "--report-path", "x.json"},
+		{"-o", "table,github", "--report"},
+	} {
+		if out, code := runCLI(t, append(check, args...)...); code != 2 {
+			t.Errorf("%v: exit %d, want 2\n%s", args, code, out)
+		}
+	}
+	if _, code := runCLI(t, "prune", "-f", values, "--chart", chart, "--report"); code != 2 {
+		t.Errorf("prune writes no report: exit %d, want 2", code)
+	}
+}
+
+func absPath(t *testing.T, p string) string {
+	t.Helper()
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return abs
+}
+
 func TestJSONReportEnvelope(t *testing.T) {
 	type envelope struct {
 		SchemaVersion int               `json:"schemaVersion"`
