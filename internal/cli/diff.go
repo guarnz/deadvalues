@@ -479,5 +479,7 @@ func (g *globals) diff(ctx context.Context, j job, oldRef, newRef source.Ref) *r
 	diff.Sort(ts)
 
 	renders := oldA.result.Renders + newA.result.Renders + n
-	return report.NewDiff(j.name, j.appFile, newA.renderer.Name(), from, to, j.vals, ts, renders, g.ignorer(j.app, newA.renderer.Name()), time.Since(start))
+	d := report.NewDiff(j.name, j.appFile, newA.renderer.Name(), from, to, j.vals, ts, renders, g.ignorer(j.app, newA.renderer.Name()), time.Since(start))
+	d.AppVersion = report.NewAppVersion(oldA.renderer.AppVersion(), newA.renderer.AppVersion())
+	return d
 }

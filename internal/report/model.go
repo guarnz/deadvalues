@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/guarnz/deadvalues/internal/compare"
 	"github.com/guarnz/deadvalues/internal/diff"
 	"github.com/guarnz/deadvalues/internal/probe"
@@ -372,17 +373,45 @@ type Change struct {
 }
 
 type Diff struct {
-	App     string         `json:"app"`
-	AppFile string         `json:"appFile,omitempty"`
-	Chart   string         `json:"chart"`
-	From    string         `json:"from"`
-	To      string         `json:"to"`
-	Values  []string       `json:"values"`
-	Renders int64          `json:"renders"`
-	Millis  int64          `json:"durationMs"`
-	Changes []Change       `json:"changes"`
-	Counts  map[string]int `json:"counts"`
-	Error   string         `json:"error,omitempty"`
+	App        string         `json:"app"`
+	AppFile    string         `json:"appFile,omitempty"`
+	Chart      string         `json:"chart"`
+	From       string         `json:"from"`
+	To         string         `json:"to"`
+	AppVersion *AppVersion    `json:"appVersion,omitempty"`
+	Values     []string       `json:"values"`
+	Renders    int64          `json:"renders"`
+	Millis     int64          `json:"durationMs"`
+	Changes    []Change       `json:"changes"`
+	Counts     map[string]int `json:"counts"`
+	Error      string         `json:"error,omitempty"`
+}
+
+// AppVersion is the appVersion of Chart.yaml before and after a bump that changes it.
+type AppVersion struct {
+	From  string `json:"from"`
+	To    string `json:"to"`
+	Major bool   `json:"major,omitempty"`
+}
+
+// NewAppVersion is nil when the appVersion is missing on a side or did not change.
+func NewAppVersion(from, to string) *AppVersion {
+	if from == "" || to == "" || from == to {
+		return nil
+	}
+	a := &AppVersion{From: from, To: to}
+	old, err1 := semver.NewVersion(from)
+	cur, err2 := semver.NewVersion(to)
+	a.Major = err1 == nil && err2 == nil && old.Major() != cur.Major()
+	return a
+}
+
+func (a *AppVersion) String() string {
+	s := "app " + a.From + " → " + a.To
+	if a.Major {
+		s += " (major)"
+	}
+	return s
 }
 
 func NewDiff(app, appFile, chart, from, to string, set *values.Set, ts []diff.Transition, renders int64, ignored func([]string) bool, took time.Duration) *Diff {

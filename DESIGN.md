@@ -156,6 +156,7 @@ A chart without its `charts/` directory renders almost nothing, so the dependenc
 - Both sides are extracted with `git archive` into temporary directories, so the working tree is never touched and a branch can be reviewed without checking it out.
 - The values of the "after" side are used for both versions: the question is what the new chart does to the values you are about to ship.
 - A ref missing locally is looked up on `origin` (`renovate/x` finds `origin/renovate/x`). If most versions go down, a note warns that the sides were probably swapped.
+- A bump that changes the chart's `appVersion` shows it in the header, marked `(major)` across a major version. It is a warning, not a finding: deadvalues judges the values, and a major app upgrade can hide behind a chart minor with nothing but an image tag changing, as Vault 1.20 → 2.0 in chart 0.30.1 → 0.34.1.
 
 **By directory.** Renovate bumps the version in different places: an Application's `targetRevision`, a HelmRelease `version`, an `OCIRepository` tag in another file, an overlay patch. Instead of handling each, `diff <dir>` resolves the targets of the directory in both trees, pairs them by identity (Application + source, or HelmRelease namespace/name) and diffs only those whose chart version changed. `-f` alone does the same for the apps that load the file.
 
@@ -205,7 +206,7 @@ Two composite actions in this repository: `guarnz/deadvalues@v0` (`action.yml`) 
 
 **`args`** runs any deadvalues command with the same report. It is split with `read -ra`, never `eval`, so a value built from pull request data cannot run shell code.
 
-**The report** opens with a GitHub alert (`CAUTION`, `WARNING`, `NOTE`), lists every command with :x:/:warning:/:white_check_mark: and shows the sections with findings. Which commands have findings is read from the **JSON** report with `jq`: the JSON is a stable contract, versioned by `schemaVersion` ([docs/json.md](docs/json.md)), the Markdown is not. The script also reads the format before the envelope, so a newer action works with an older binary. The pull request comment is found by a hidden marker and updated in place; above ~60 KB it is cut with a link to the job summary, because GitHub rejects comments over 65 KB. The run step always exits 0 and a last step fails the job, so the comment is posted even when the check fails.
+**The report** opens with a GitHub alert (`CAUTION`, `WARNING`, `IMPORTANT`, `NOTE`), lists every command with :x:/:warning:/:white_check_mark: and shows the sections with findings. Which commands have findings is read from the **JSON** report with `jq`: the JSON is a stable contract, versioned by `schemaVersion` ([docs/json.md](docs/json.md)), the Markdown is not. The script also reads the format before the envelope, so a newer action works with an older binary. The pull request comment is found by a hidden marker and updated in place; above ~60 KB it is cut with a link to the job summary, because GitHub rejects comments over 65 KB. The run step always exits 0 and a last step fails the job, so the comment is posted even when the check fails.
 
 ```
 Pull request (Renovate: webapp 0.1.0 → 0.2.0)

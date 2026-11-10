@@ -50,7 +50,7 @@ The same values after the chart is bumped to 0.2.0 (by Renovate or by hand), whi
 
 ```
 $ deadvalues diff apps --base origin/main
-example  webapp 0.1.0 → 0.2.0
+example  webapp 0.1.0 → 0.2.0  ·  app 1.20.1 → 2.0.4 (major)
 82 renders in 49ms
 
   BREAKING  labels.team                ALIVE → DEAD

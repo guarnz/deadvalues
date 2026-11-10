@@ -36,7 +36,7 @@ func TestDiffMarkdownAndGithub(t *testing.T) {
 		t.Fatalf("exit %d, want 1 (breaking)\n%s", code, out)
 	}
 	for _, want := range []string{
-		"— cases 0.1.0 → 0.2.0",
+		"— cases 0.1.0 → 0.2.0, app 1.20.1 → 2.0.4 (major)",
 		"| Change | Key | Detail | Source |",
 		"| **BREAKING** | `labels.team` | ALIVE → DEAD |",
 		"| PINNED | `service.type` |",
@@ -46,6 +46,19 @@ func TestDiffMarkdownAndGithub(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("markdown is missing %q:\n%s", want, out)
 		}
+	}
+
+	out, _ = runCLI(t, args...)
+	if !strings.Contains(out, "cases 0.1.0 → 0.2.0  ·  app 1.20.1 → 2.0.4 (major)") {
+		t.Errorf("the table header is missing the app version:\n%s", out)
+	}
+	out, _ = runCLI(t, append(args, "-o", "json")...)
+	if !strings.Contains(out, `"appVersion": {
+        "from": "1.20.1",
+        "to": "2.0.4",
+        "major": true
+      },`) {
+		t.Errorf("the JSON is missing the app version:\n%s", out)
 	}
 
 	out, _ = runCLI(t, append(args, "-o", "github")...)
