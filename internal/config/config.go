@@ -18,8 +18,10 @@ type Config struct {
 	KubeVersion string   `json:"kubeVersion"`
 	APIVersions []string `json:"apiVersions"`
 	FailOn      string   `json:"failOn"`
-	Ignore      []Ignore `json:"ignore"`
-	Flux        Flux     `json:"flux"`
+	// Skip adds to --skip: apps by name, or directories relative to the file.
+	Skip   []string `json:"skip"`
+	Ignore []Ignore `json:"ignore"`
+	Flux   Flux     `json:"flux"`
 }
 
 // Flux holds values for ${var} placeholders that Flux postBuild
@@ -28,11 +30,12 @@ type Flux struct {
 	Substitute map[string]string `json:"substitute"`
 }
 
-// Ignore accepts keys on purpose, for every app when App is empty. Keys are dotted
-// patterns: `*` is one segment, `**` any number, and a map pattern covers its keys.
+// Ignore accepts keys on purpose, in the apps named App, those of Chart, or every app when both
+// are empty. Keys are dotted patterns: `*` is one segment, `**` any number, a map its keys.
 type Ignore struct {
-	App  string   `json:"app"`
-	Keys []string `json:"keys"`
+	App   string   `json:"app"`
+	Chart string   `json:"chart"`
+	Keys  []string `json:"keys"`
 }
 
 // Load reads path. A missing file is an error only when required is true.
@@ -53,9 +56,10 @@ func Load(p string, required bool) (*Config, error) {
 
 func Default(repoRoot string) string { return filepath.Join(repoRoot, FileName) }
 
-func (c *Config) Ignored(app string, key []string) bool {
+// Ignored reports whether an ignore entry covers key in app, whose chart is named chart.
+func (c *Config) Ignored(app, chart string, key []string) bool {
 	for _, ig := range c.Ignore {
-		if ig.App != "" && ig.App != app {
+		if (ig.App != "" && ig.App != app) || (ig.Chart != "" && ig.Chart != chart) {
 			continue
 		}
 		for _, pattern := range ig.Keys {

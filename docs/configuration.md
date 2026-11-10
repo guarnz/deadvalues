@@ -8,10 +8,16 @@ apiVersions:
   - monitoring.coreos.com/v1/ServiceMonitor
   - monitoring.coreos.com/v1/PrometheusRule
 failOn: dead
+skip:
+  - renovate-operator
+  - clusters/lab
 ignore:
   - app: example
     keys:
       - strategy.rollingUpdate
+  - chart: example
+    keys:
+      - podSecurityContext
   - keys:
       - "**.podAnnotations"
 flux:
@@ -31,9 +37,13 @@ Charts often render resources only when the cluster serves an API (`.Capabilitie
 
 `scan` and `diff <dir>` find the APIs your repository installs on their own, so you only list what is installed outside it. When a chart checks an API nothing declares, they look for its CRD among what the same cluster applies: plain manifests, the `crds/` directory of the other charts and their subcharts, and templates, rendered with the app's values so a flag like `crds.enabled: false` counts. Clusters are told apart by the [Flux roots](argo-flux.md#clusters) and by the `destination` of Argo CD Applications, so a CRD of one cluster does not count for another. Apps left out with `--skip`, `--only` or a narrower directory still count: they are out of the report, not out of the cluster. As with listed APIs, a key that only matters while the CRD is missing stays `ALIVE`. A line on stderr lists the APIs taken from the repository and what installs them. `check` and `explain` look at one app, so they only use `apiVersions`. A CRD from a chart in another git repository, a remote kustomize resource or anything applied by hand goes in `apiVersions`.
 
+## Skip
+
+`skip` lists apps that `scan` and `diff <dir>` leave out, in the same forms as `--skip`: a name, `namespace/name`, the name in the report, or a directory, relative to the file. It adds to `--skip`, so the GitHub Action, the pre-commit hook and a plain `scan` leave out the same apps without repeating them. A skipped app is not analyzed at all; to keep an app and accept some of its keys, use `ignore`.
+
 ## Ignore
 
-In `ignore`, `*` matches one key segment, `**` any number of segments, and a pattern matching a map covers everything under it. `app` is the Application's or HelmRelease's `metadata.name`, without the namespace; without `app`, the pattern applies to every app.
+In `ignore`, `*` matches one key segment, `**` any number of segments, and a pattern matching a map covers everything under it. `app` is the Application's or HelmRelease's `metadata.name`, without the namespace. `chart` is the chart's `name` in `Chart.yaml`, so one entry covers every app built from it. With both, an app must match both; with neither, the pattern applies to every app. Ignored keys are still analyzed and counted in the summary; they never fail a command.
 
 ## Fail on
 

@@ -195,7 +195,7 @@ The Flux reader produces the same target as the Argo one. The field-by-field rul
 
 ## 8. GitHub Actions
 
-Two composite actions in this repository: `guarnz/deadvalues@v0` (`action.yml`) runs deadvalues and reports; `guarnz/deadvalues/setup@v0` (`setup/action.yml`) only installs it. Both run `scripts/action-install.sh`, which downloads the release **binary** for the runner and checks it against `checksums.txt`: faster than pulling the image, and no Docker needed. `setup` is a subdirectory of the same repository, like `actions/cache/restore`, so both share the tag and the install script.
+Two composite actions in this repository: `guarnz/deadvalues@v0` (`action.yml`) runs deadvalues and reports; `guarnz/deadvalues/setup@v0` (`setup/action.yml`) only installs it. Both run `scripts/action-install.sh`, which downloads the release **binary** for the runner and checks it against `checksums.txt`: faster than pulling the image, and no Docker needed. `setup` is a subdirectory of the same repository, like `actions/cache/restore`, so both share the tag and the install script. The binary follows the ref the action runs at, so the script and the binary never come from different releases: a tag installs itself, and a commit SHA, the way Renovate pins actions, installs the release tagged on it, found with `git ls-remote --tags` (no API call, no token).
 
 **The base is the change itself.** On `pull_request` it is `pull_request.base.sha`: the checkout is the merge commit, so the diff is exactly what the pull request changes. On `push` it is `github.event.before`: every commit of the push. A `base` input overrides both. When there is none (first push of a branch, force push, `workflow_dispatch`), every app is scanned and the report says why.
 

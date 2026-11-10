@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -207,6 +208,30 @@ func TestDeclaredAPIKeepsBootstrapKeys(t *testing.T) {
 	}
 }
 
+func TestSkipInTheConfig(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	app := func(dir, name string) {
+		writeFile(t, filepath.Join(root, dir, name+".yaml"), "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: "+name+
+			"\nspec:\n  source:\n    repoURL: https://example.com/repo\n    path: charts/cases\n    helm:\n      values: |\n        name: "+name+"\n")
+	}
+	app("apps", "one")
+	app("apps", "two")
+	app("apps", "three")
+	app("legacy", "old")
+	cfg := filepath.Join(root, ".deadvalues.yaml")
+	writeFile(t, cfg, "skip:\n  - one\n  - legacy\n")
+	t.Chdir(t.TempDir())
+	out, _ := runWithConfig(t, cfg, "scan", root, "--repo-root", root, "--skip", "two", "-o", "json", "--fail-on", "none")
+	var names []string
+	for _, c := range decodeChecks(t, out) {
+		names = append(names, c.App)
+	}
+	if !slices.Equal(names, []string{"three"}) {
+		t.Errorf("apps %v, want three: one by name and legacy/ as a directory from the config, two from --skip", names)
+	}
+}
+
 // upgradeChart writes a chart whose hook.enabled only matters on an upgrade, and that fails to
 // upgrade without a password, as the Bitnami charts do.
 func upgradeChart(t *testing.T, dir string) {
@@ -296,6 +321,12 @@ func TestFailOnAndIgnore(t *testing.T) {
 	}
 	if !strings.Contains(out, "2 ignored") {
 		t.Errorf("summary should count ignored keys:\n%s", out)
+	}
+	for chart, want := range map[string]int{"cases": 0, "other": 1} {
+		writeFile(t, cfg, "ignore:\n  - chart: "+chart+"\n    keys:\n      - service.prot\n      - monitoring\n")
+		if out, code := runWithConfig(t, cfg, "check", "--chart", casesChart, "-f", casesValues, "--color", "never"); code != want {
+			t.Errorf("ignore for chart %s: exit %d, want %d\n%s", chart, code, want, out)
+		}
 	}
 
 	cfg2 := filepath.Join(t.TempDir(), ".deadvalues.yaml")

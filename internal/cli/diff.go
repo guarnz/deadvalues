@@ -62,7 +62,7 @@ same is done for the Applications and HelmReleases that load those files.`,
 				if t.app != "" || t.chart != "" || from != "" || to != "" {
 					return usageErr("diff <dir> cannot be combined with --app, --chart, --from or --to")
 				}
-				reports, err = g.diffDir(cmd.Context(), args[0], t.repoRoot, base, head, newAppFilter(nil, skip))
+				reports, err = g.diffDir(cmd.Context(), args[0], t.repoRoot, base, head, newAppFilter(nil, g.skipList(skip)))
 				if err != nil {
 					return &exitError{code: 2, err: err}
 				}
@@ -479,5 +479,5 @@ func (g *globals) diff(ctx context.Context, j job, oldRef, newRef source.Ref) *r
 	diff.Sort(ts)
 
 	renders := oldA.result.Renders + newA.result.Renders + n
-	return report.NewDiff(j.name, j.appFile, newA.renderer.Name(), from, to, j.vals, ts, renders, g.ignorer(j.app), time.Since(start))
+	return report.NewDiff(j.name, j.appFile, newA.renderer.Name(), from, to, j.vals, ts, renders, g.ignorer(j.app, newA.renderer.Name()), time.Since(start))
 }
