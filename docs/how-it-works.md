@@ -31,6 +31,10 @@ The dependencies a chart's `charts/` directory lacks are downloaded too, at the 
 
 A chart in another git repository is fetched with `git` as one shallow commit and kept in the same cache by commit, so a branch is looked up every run and a commit is fetched once. Here every dependency must load, and a `file://` one must stay inside the repository. Fetching never prompts and takes only `https`, `http`, `ssh` and `git` URLs (set `GIT_ALLOW_PROTOCOL` to change that), and symbolic links in the clone stay plain files.
 
+## One app (`--app`)
+
+`--app` takes the file that defines the app, and the app is built as `scan` builds it: with the Flux variables of the cluster that applies it, the overlay patches on top of it, one app per cluster that applies a shared base, and every chart of a `kustomization.yaml` with `helmCharts:`. A file that `scan` does not reach, such as a HelmRelease no Flux `Kustomization` applies, is read on its own.
+
 ## Values files without a chart (`-f` alone)
 
 With `-f` and no `--app` or `--chart`, in `check`, `explain`, `prune` and `diff`:

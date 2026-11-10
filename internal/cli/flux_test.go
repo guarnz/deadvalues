@@ -644,6 +644,35 @@ spec:
 	}
 }
 
+func TestAppSeesTheOverlayThatAppliesIt(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	base := filepath.Join(root, "base", "release.yaml")
+	writeFile(t, filepath.Join(root, "base", "kustomization.yaml"), "resources: [release.yaml]\n")
+	writeFile(t, base, `apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: web
+spec:
+  chart:
+    spec:
+      chart: ./charts/cases
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+    name: web
+`)
+	writeFile(t, filepath.Join(root, "overlay", "kustomization.yaml"),
+		"resources: [../base]\npatches:\n  - target: {kind: HelmRelease}\n    patch: |\n      - op: add\n        path: /spec/values/replicas\n        value: 3\n")
+	out, code := runCLI(t, "explain", "replicas", "--app", base, "--repo-root", root, "-o", "json")
+	var e struct{ Value interface{} }
+	if err := decodeReport(out, &e); err != nil || code != 0 || e.Value != float64(3) {
+		t.Errorf("explain --app on the base finds the value the overlay sets (exit %d, %v):\n%s", code, err, out)
+	}
+}
+
 func TestScanJudgesAPatchSeveralReleasesShare(t *testing.T) {
 	root := t.TempDir()
 	for name, tpl := range map[string]string{

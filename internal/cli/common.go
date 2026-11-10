@@ -87,6 +87,9 @@ func (g *globals) jobs(t *targetFlags) ([]job, error) {
 	case t.app != "" && t.chart != "":
 		return nil, usageErr("--app and --chart are mutually exclusive")
 	case t.app != "":
+		if jobs, err := g.repoJobs(t.app, t); err != nil || len(jobs) > 0 {
+			return jobs, err
+		}
 		return g.manifestJobs(t.app, t)
 	case t.chart == "" && len(t.values) > 0:
 		return g.valuesJobs(t)

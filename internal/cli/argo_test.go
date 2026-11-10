@@ -489,6 +489,12 @@ func TestKustomizeHelmChartsByNameAndRelativeRoot(t *testing.T) {
 	if got := apps("apps/logs", "--repo-root", "."); !slices.Equal(got, []string{"apps/logs/agent", "apps/logs/loki"}) {
 		t.Errorf("a relative --repo-root finds %v", got)
 	}
+
+	out, code := runCLI(t, "check", "--app", filepath.Join("apps", "logs", "kustomization.yaml"), "-o", "json", "--fail-on", "none")
+	var checks []jsonCheck
+	if err := decodeReport(out, &checks); err != nil || code != 0 || len(checks) != 2 {
+		t.Errorf("check --app on the kustomization checks both charts (exit %d, %v):\n%s", code, err, out)
+	}
 }
 
 func TestKustomizeHelmChartsDiffAndChangedSince(t *testing.T) {

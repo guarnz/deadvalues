@@ -59,6 +59,37 @@ func (g *globals) manifestJobs(file string, t *targetFlags) ([]job, error) {
 	return nil, usageErr("%s: no Argo CD Application or Flux HelmRelease found", file)
 }
 
+// repoJobs returns the targets scan builds from file, so --app sees what scan sees: cluster
+// variables, overlay patches, every HelmRelease in the file and a kustomization's helmCharts.
+func (g *globals) repoJobs(file string, t *targetFlags) ([]job, error) {
+	root := findRoot(t.repoRoot, file)
+	if g.crds == nil {
+		g.crds = newCRDSearch(root)
+	}
+	all, _, err := g.dirJobs(root, root, nil)
+	if err != nil {
+		return nil, nil
+	}
+	want := normPath(file)
+	var out []job
+	for _, j := range all {
+		if j.skip != "" || normPath(j.appFile) != want {
+			continue
+		}
+		if err := addExtra(j.vals, t); err != nil {
+			return nil, err
+		}
+		if t.release != "" {
+			j.release = t.release
+		}
+		if t.namespace != "" {
+			j.namespace = t.namespace
+		}
+		out = append(out, j)
+	}
+	return out, nil
+}
+
 // dirJobs collects every target under dir (Applications, standalone HelmReleases and
 // those built from kustomize overlays); unresolvable ones come back as failed reports.
 func (g *globals) dirJobs(dir, root string, filter *appFilter) ([]job, []*report.Check, error) {

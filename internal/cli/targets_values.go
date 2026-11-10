@@ -19,6 +19,9 @@ func (g *globals) valuesJobs(t *targetFlags) ([]job, error) {
 		only[normPath(f)] = true
 	}
 	root := findRoot(t.repoRoot, t.values[0])
+	if g.crds == nil {
+		g.crds = newCRDSearch(root)
+	}
 
 	all, _, err := g.dirJobs(root, root, nil)
 	if err != nil {
