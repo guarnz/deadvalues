@@ -496,7 +496,9 @@ type Explain struct {
 	Changes []compare.Change `json:"changes"`
 	// Required is why the render breaks without the key.
 	Required string `json:"required,omitempty"`
-	Error    string `json:"error,omitempty"`
+	// Group is the map to remove with the key when that changes nothing: it is dead with it.
+	Group string `json:"group,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 func short(v interface{}) string {

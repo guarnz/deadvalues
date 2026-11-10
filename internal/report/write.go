@@ -127,6 +127,10 @@ func (w *Writer) Explains(es []*Explain) error {
 				fmt.Fprintf(w.Out, "> **Error:** %s\n\n", e.Error)
 				continue
 			}
+			if e.Group != "" {
+				fmt.Fprintf(w.Out, "No effect: removing `%s` with everything in it changes nothing. It cannot go alone:\n\n```text\n%s\n```\n\n", e.Group, e.Required)
+				continue
+			}
 			if e.Required != "" {
 				fmt.Fprintf(w.Out, "Required: the render breaks without it.\n\n```text\n%s\n```\n\n", e.Required)
 				continue
@@ -152,6 +156,10 @@ func (w *Writer) Explains(es []*Explain) error {
 				continue
 			}
 			fmt.Fprintf(w.Out, "%s  %s\n", p.Bold(e.App), e.Chart)
+			if e.Group != "" {
+				fmt.Fprintf(w.Out, "%s = %s has no effect: removing %s with everything in it changes nothing; it cannot go alone\n%s\n", p.Bold(e.Key), short(e.Value), p.Bold(e.Group), e.Required)
+				continue
+			}
 			if e.Required != "" {
 				fmt.Fprintf(w.Out, "%s = %s is required: the render breaks without it\n%s\n", p.Bold(e.Key), short(e.Value), e.Required)
 				continue

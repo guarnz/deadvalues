@@ -208,6 +208,26 @@ func TestDeclaredAPIKeepsBootstrapKeys(t *testing.T) {
 	}
 }
 
+func TestExplainNamesTheDeadGroup(t *testing.T) {
+	dir := t.TempDir()
+	chart := filepath.Join(dir, "chart")
+	writeFile(t, filepath.Join(chart, "Chart.yaml"), "apiVersion: v2\nname: probes\nversion: 0.1.0\n")
+	writeFile(t, filepath.Join(chart, "values.schema.json"), `{"type": "object", "properties": {"probe": {"type": "object", "required": ["port"]}}}`)
+	writeFile(t, filepath.Join(chart, "templates", "cm.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\ndata:\n  name: {{ .Values.name | quote }}\n")
+	vals := filepath.Join(dir, "values.yaml")
+	writeFile(t, vals, "name: web\nprobe:\n  port: 80\n  path: /\n")
+
+	out, _ := runCLI(t, "explain", "probe.port", "--chart", chart, "-f", vals, "-o", "json")
+	var e struct{ Group, Required string }
+	if err := decodeReport(out, &e); err != nil || e.Group != "probe" || e.Required == "" {
+		t.Errorf("probe.port cannot go alone, but probe can: want group probe (%v)\n%s", err, out)
+	}
+	out, _ = runCLI(t, "explain", "probe.port", "--chart", chart, "-f", vals, "--color", "never")
+	if !strings.Contains(out, "has no effect: removing probe with everything in it changes nothing") {
+		t.Errorf("table:\n%s", out)
+	}
+}
+
 func TestSkipInTheConfig(t *testing.T) {
 	root := t.TempDir()
 	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
