@@ -208,7 +208,7 @@ The `version` input overrides it: an exact tag such as `v0.1.0`, or `latest`. Re
 | `mode` | `all` | `all`, `diff` or `scan` |
 | `base` | from the event | Ref or SHA to compare with |
 | `args` | | Run this command instead of the built-in flow |
-| `skip` | | Apps or directories to leave out of the built-in flow, comma-separated: an app by its name, `namespace/name` or the name in the report |
+| `skip` | | Apps or directories to leave out of the built-in flow, comma-separated: an app by its name, `namespace/name` or the name in the report. Adds to `skip` in [`.deadvalues.yaml`](configuration.md#skip) |
 | `fail-on-diff` | `breaking` | `breaking`, `pinned`, `changed`, `none` or `false` (the same as `none`) |
 | `fail-on-scan` | `none` | `dead`, `conditional`, `redundant`, `none` or `false` (the same as `none`) |
 | `fail-on-error` | `true` | `true` or `false`; with `false` an app that cannot be analyzed is reported but does not fail the check, see [When the check fails](#when-the-check-fails) |

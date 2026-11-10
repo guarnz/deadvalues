@@ -94,6 +94,7 @@ type globals struct {
 	flagAPIVersions []string
 
 	cfg        *config.Config
+	cfgDir     string
 	loader     *source.Loader
 	colorOn    bool
 	cwd        string
@@ -203,6 +204,9 @@ func (g *globals) setup(cmd *cobra.Command) error {
 	g.cfg, err = config.Load(cfgPath, required)
 	if err != nil {
 		return &exitError{code: 2, err: err}
+	}
+	if abs, err := filepath.Abs(cfgPath); err == nil {
+		g.cfgDir = filepath.Dir(abs)
 	}
 	g.kubeVersionFlag = cmd.Flags().Changed("kube-version")
 	if !g.kubeVersionFlag && g.cfg.KubeVersion != "" {

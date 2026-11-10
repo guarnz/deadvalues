@@ -64,13 +64,13 @@ reported as ERROR in the summary.`,
 				}
 			}
 
-			jobs, failed, err := g.dirJobs(dir, root, newAppFilter(only, skip))
+			jobs, failed, err := g.dirJobs(dir, root, newAppFilter(only, g.skipList(skip)))
 			if err != nil {
 				return &exitError{code: 2, err: err}
 			}
 			var base map[string]job
 			if changed != nil {
-				base = g.baseJobs(dir, root, changedSince, newAppFilter(only, skip))
+				base = g.baseJobs(dir, root, changedSince, newAppFilter(only, g.skipList(skip)))
 			}
 			var reports []*report.Check
 			for _, c := range failed {
