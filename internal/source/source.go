@@ -24,6 +24,8 @@ import (
 	"helm.sh/helm/v4/pkg/registry"
 	repo "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
+
+	"github.com/guarnz/deadvalues/internal/retry"
 )
 
 // v2 accepts the charts the Helm 4 SDK can render, apiVersion v1 and v2; v3 charts
@@ -159,7 +161,7 @@ func (l *Loader) oci(name, version string) (*chart.Chart, error) {
 	if isDigest(version) {
 		sep = "@"
 	} else if c, ok := constraint(version); ok {
-		tags, err := client.Tags(name)
+		tags, err := retry.Do(func() ([]string, error) { return client.Tags(name) })
 		if err != nil {
 			return nil, fmt.Errorf("oci://%s: listing tags for %q: %w", name, version, err)
 		}
@@ -228,7 +230,7 @@ func (l *Loader) http(ctx context.Context, ref Ref) (*chart.Chart, error) {
 		return v2(loader.LoadArchive(bytes.NewReader(data)))
 	}
 
-	raw, err := l.get(ctx, base+"/index.yaml")
+	raw, err := retry.Do(func() ([]byte, error) { return l.get(ctx, base+"/index.yaml") })
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +317,7 @@ func (l *Loader) cached(name, version string, fetch func() ([]byte, error)) ([]b
 	if data, ok := l.readCache(name, version); ok {
 		return data, nil
 	}
-	data, err := fetch()
+	data, err := retry.Do(fetch)
 	if err != nil {
 		return nil, err
 	}

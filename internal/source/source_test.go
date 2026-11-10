@@ -5,11 +5,20 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/guarnz/deadvalues/internal/retry"
 )
+
+func TestMain(m *testing.M) {
+	retry.Delays = []time.Duration{0, 0}
+	os.Exit(m.Run())
+}
 
 func TestLocalChartGetsWhatItCanOfItsDependencies(t *testing.T) {
 	var hits atomic.Int32
@@ -45,6 +54,23 @@ func TestLocalChartGetsWhatItCanOfItsDependencies(t *testing.T) {
 	}
 	if got := hits.Load(); got != 1 {
 		t.Errorf("a repository that failed was asked %d times in one run", got)
+	}
+}
+
+func TestIndexIsFetchedAgainAfterAGatewayError(t *testing.T) {
+	retry.Reset()
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if hits.Add(1) == 1 {
+			http.Error(w, "upstream timed out", http.StatusGatewayTimeout)
+			return
+		}
+		fmt.Fprint(w, "apiVersion: v1\nentries: {}\n")
+	}))
+	defer srv.Close()
+	_, err := NewLoader(t.TempDir(), false).Load(context.Background(), Ref{Repo: srv.URL, Chart: "web", Version: "1.0.0"})
+	if hits.Load() != 2 || err == nil || strings.Contains(err.Error(), "504") {
+		t.Errorf("a 504 is tried again: %d requests, %v", hits.Load(), err)
 	}
 }
 

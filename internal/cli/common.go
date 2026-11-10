@@ -14,6 +14,7 @@ import (
 	"github.com/guarnz/deadvalues/internal/probe"
 	"github.com/guarnz/deadvalues/internal/render"
 	"github.com/guarnz/deadvalues/internal/report"
+	"github.com/guarnz/deadvalues/internal/retry"
 	"github.com/guarnz/deadvalues/internal/source"
 	"github.com/guarnz/deadvalues/internal/values"
 )
@@ -252,13 +253,7 @@ func (e *renderError) Unwrap() error { return e.err }
 // networkFailure reports whether a render failed on the network, as a schema whose $ref is
 // downloaded, and not on the values.
 func networkFailure(err error) bool {
-	msg := err.Error()
-	for _, s := range []string{"HTTP request failed", "dial tcp", "connection refused", "no such host", "i/o timeout", "network is unreachable", "TLS handshake"} {
-		if strings.Contains(msg, s) {
-			return true
-		}
-	}
-	return false
+	return retry.Transient(err) || strings.Contains(err.Error(), "HTTP request failed")
 }
 
 // keepBootstrapKeys revives dead keys that matter while a CRD is not there yet, such as

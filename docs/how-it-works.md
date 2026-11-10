@@ -25,7 +25,7 @@ Renders run in parallel, in memory, client-side (like `helm template`). Nothing 
 | `name` with `--repo URL` | an HTTP repository: `index.yaml`, then the `.tgz`, or the registry the index points at, as Bitnami's does |
 | `oci://...`, or `--repo oci://...` | an OCI registry, with the credentials of `helm registry login`; a digest (`oci://...@sha256:...`, or `--version sha256:...`) pulls that exact chart |
 
-Without `--version`, the latest chart is used; a range (`1.x`, `>=1.0.0`) picks the highest match. Remote charts are loaded in memory and cached as `.tgz` in the user cache directory (`~/.cache/deadvalues` on Linux), or `--cache-dir`; `--no-cache` always downloads.
+Without `--version`, the latest chart is used; a range (`1.x`, `>=1.0.0`) picks the highest match. Remote charts are loaded in memory and cached as `.tgz` in the user cache directory (`~/.cache/deadvalues` on Linux), or `--cache-dir`; `--no-cache` always downloads. A download that fails on the network (a timeout, a dropped connection, a 502, 503 or 504) is tried again after 2, 5 and 10 seconds, and so is a render whose `values.schema.json` points at a schema by URL; a 401, 403 or 404 is reported at once. If the network is still down after that, the rest of the run does not wait again.
 
 The dependencies a chart's `charts/` directory lacks are downloaded too, at the versions of `Chart.lock`, as Argo CD and Flux do before rendering, and `file://` dependencies are read from disk. A local chart is still analyzed when one cannot be fetched, without network for instance: a note names it, because the keys only that dependency reads can look dead.
 
