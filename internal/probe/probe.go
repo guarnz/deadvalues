@@ -41,6 +41,10 @@ type Finding struct {
 	Implicit    bool
 	Toggles     [][]string
 	RequiresAPI []string
+	// ReadIn is a template that names a dead key, so only the current values leave it unused;
+	// Unread is set when no template names it at all.
+	ReadIn string
+	Unread bool
 }
 
 func (f Finding) Key() string { return values.Display(f.Path) }

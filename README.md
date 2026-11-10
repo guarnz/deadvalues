@@ -170,7 +170,7 @@ Removes keys by deleting only their lines, so comments and formatting stay intac
 | `check` / `scan` | Meaning |
 |---|---|
 | `ALIVE` | The key changes the rendered manifests |
-| `DEAD` | The chart ignores the key |
+| `DEAD` | The chart ignores the key with your values; the detail says if a template reads it under another condition, or if no template mentions it |
 | `CONDITIONAL` | Only has an effect when `<x>.enabled=true`, or when the cluster serves an API |
 | `REDUNDANT` | Equal to the chart default (or to a fallback in the template) |
 | `GROUP` | Only has an effect together with its siblings (`if or .a .b`) |

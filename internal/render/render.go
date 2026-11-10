@@ -324,6 +324,83 @@ func (r *Renderer) AsUpgrade() *Renderer {
 	return &Renderer{chart: r.chart, opts: opts, caps: r.caps, crds: r.crds, skipSchema: r.skipSchema, declared: r.declared}
 }
 
+// Mention tells how the templates name the value at path. readIn is a template that names it as
+// .Values.a.b; unread is set only when no file names it, a map above it, or its last segment.
+func (r *Renderer) Mention(path []string) (in string, unread bool) {
+	if in = readIn(r.chart, path); in != "" {
+		return in, false
+	}
+	return "", !named(r.chart, path)
+}
+
+var identifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// named reports whether any file of c or its subcharts could read path: it names the path, a
+// map above it or its last segment. A path it cannot search for counts as named.
+func named(c *chart.Chart, path []string) bool {
+	if slices.ContainsFunc(path, func(p string) bool { return !identifier.MatchString(p) }) {
+		return true
+	}
+	var res []*regexp.Regexp
+	for i := range path {
+		for j := i + 1; j <= len(path); j++ {
+			res = append(res, regexp.MustCompile(`(?:^|[^A-Za-z0-9_])Values\.`+regexp.QuoteMeta(strings.Join(path[i:j], "."))+`(?:[^A-Za-z0-9_]|$)`))
+		}
+	}
+	res = append(res, regexp.MustCompile(`\b`+regexp.QuoteMeta(path[len(path)-1])+`\b`))
+	var walk func(c *chart.Chart) bool
+	walk = func(c *chart.Chart) bool {
+		for _, t := range c.Templates {
+			if slices.ContainsFunc(res, func(re *regexp.Regexp) bool { return re.Match(t.Data) }) {
+				return true
+			}
+		}
+		return slices.ContainsFunc(c.Dependencies(), walk)
+	}
+	return walk(c)
+}
+
+func readIn(c *chart.Chart, path []string) string {
+	if t := mentions(c, path); t != "" {
+		return t
+	}
+	for _, d := range c.Dependencies() {
+		names := []string{d.Name()}
+		for _, dep := range c.Metadata.Dependencies {
+			if dep.Name == d.Name() && dep.Alias != "" {
+				names = append(names, dep.Alias)
+			}
+		}
+		// A subchart sees its own block under its name, and global as it is.
+		if len(path) > 1 && path[0] == "global" {
+			if t := readIn(d, path); t != "" {
+				return t
+			}
+		} else if len(path) > 1 && slices.Contains(names, path[0]) {
+			if t := readIn(d, path[1:]); t != "" {
+				return t
+			}
+		}
+	}
+	return ""
+}
+
+func mentions(c *chart.Chart, path []string) string {
+	if len(path) == 0 || slices.ContainsFunc(path, func(p string) bool { return !identifier.MatchString(p) }) {
+		return ""
+	}
+	re := regexp.MustCompile(`(?:^|[^A-Za-z0-9_])Values\.` + regexp.QuoteMeta(strings.Join(path, ".")) + `(?:[^A-Za-z0-9_]|$)`)
+	for _, t := range c.Templates {
+		if strings.HasSuffix(t.Name, "NOTES.txt") || strings.Contains(t.Name, "/tests/") {
+			continue
+		}
+		if re.Match(t.Data) {
+			return c.Name() + "/" + t.Name
+		}
+	}
+	return ""
+}
+
 // UsesUpgrade reports whether a template of the chart or a subchart reads .Release.IsUpgrade.
 func (r *Renderer) UsesUpgrade() bool {
 	var walk func(c *chart.Chart) bool

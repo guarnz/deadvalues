@@ -208,6 +208,32 @@ func TestDeclaredAPIKeepsBootstrapKeys(t *testing.T) {
 	}
 }
 
+func TestDeadDetailSaysWhetherTheChartReadsTheKey(t *testing.T) {
+	dir := t.TempDir()
+	chart := filepath.Join(dir, "chart")
+	writeFile(t, filepath.Join(chart, "Chart.yaml"), "apiVersion: v2\nname: web\nversion: 0.1.0\n")
+	writeFile(t, filepath.Join(chart, "values.yaml"), "mode: a\nextra: b\nlegacy:\n  timeout: 30\nlabels: {}\n")
+	writeFile(t, filepath.Join(chart, "templates", "cm.yaml"), "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n"+
+		"  labels:\n    {{- range $k, $v := .Values.labels }}\n    {{- if ne $k \"skip\" }}\n    {{ $k }}: {{ $v | quote }}\n    {{- end }}\n    {{- end }}\n"+
+		"data:\n  mode: {{ .Values.mode | quote }}\n  {{- if eq .Values.mode \"b\" }}\n  extra: {{ .Values.extra | quote }}\n  {{- end }}\n")
+	vals := filepath.Join(dir, "values.yaml")
+	writeFile(t, vals, "mode: a\nextra: c\nlegacy:\n  timeout: 60\nlabels:\n  skip: yes\n")
+	out, _ := runCLI(t, "check", "--chart", chart, "-f", vals, "-o", "json", "--fail-on", "none")
+	_, keys := statuses(t, out)
+	for key, want := range map[string]string{
+		"extra":          "read in web/templates/cm.yaml only under a condition the current values do not meet",
+		"legacy.timeout": "no template mentions it",
+		"labels.skip":    "(key not in chart values.yaml)",
+	} {
+		if k := keys[key]; k.Status != "DEAD" || !strings.Contains(k.Detail, want) {
+			t.Errorf("%s = %+v, want DEAD with %q", key, k, want)
+		}
+	}
+	if strings.Contains(keys["labels.skip"].Detail, "no template mentions it") {
+		t.Error("labels is read by a range, so its keys are never said to go unmentioned")
+	}
+}
+
 func TestExplainNamesTheDeadGroup(t *testing.T) {
 	dir := t.TempDir()
 	chart := filepath.Join(dir, "chart")
