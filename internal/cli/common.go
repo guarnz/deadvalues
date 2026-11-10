@@ -77,6 +77,8 @@ type job struct {
 	skipCRDs bool
 	// skipSchema is set when the app renders without checking values.schema.json.
 	skipSchema bool
+	// installOnly is set when the app is always rendered as helm template does, as by Argo CD.
+	installOnly bool
 }
 
 func (g *globals) jobs(t *targetFlags) ([]job, error) {
@@ -210,6 +212,9 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 	if len(apis) > 0 || len(declared) > 0 {
 		keepBootstrapKeys(withoutAPIs, r, j.vals.Values, res)
 	}
+	if !j.installOnly && r.UsesUpgrade() {
+		keepUpgradeKeys(r, j.vals.Values, res)
+	}
 	a := &analysis{renderer: r, defaults: defaults, result: res, took: time.Since(start)}
 
 	dead, needsAPI := false, false
@@ -259,15 +264,31 @@ func networkFailure(err error) bool {
 // keepBootstrapKeys revives dead keys that matter while a CRD is not there yet, such as
 // cilium's trustCRDsExist on a first install: they are idle on a running cluster, not dead.
 func keepBootstrapKeys(without, with *render.Renderer, vals map[string]interface{}, res *probe.Result) {
+	withAPIs := renderFunc(with)
+	// A failure that the APIs do not fix, as a schema that needs the key, is not about the CRD.
+	reviveDeadKeys(renderFunc(without), vals, res, func(mutated map[string]interface{}) bool {
+		_, err := withAPIs(mutated)
+		return err == nil
+	})
+}
+
+// keepUpgradeKeys revives dead keys that only an upgrade reads, such as openebs' preUpgradeHook:
+// Flux and helm upgrade render them, helm template does not.
+func keepUpgradeKeys(r *render.Renderer, vals map[string]interface{}, res *probe.Result) {
+	reviveDeadKeys(renderFunc(r.AsUpgrade()), vals, res, func(map[string]interface{}) bool { return true })
+}
+
+// reviveDeadKeys marks alive each dead key whose removal changes what other renders, or breaks
+// it when breaks agrees; nothing changes when other cannot render the values at all.
+func reviveDeadKeys(other probe.RenderFunc, vals map[string]interface{}, res *probe.Result, breaks func(map[string]interface{}) bool) {
 	if !slices.ContainsFunc(res.Findings, func(f probe.Finding) bool { return f.Status == probe.Dead }) {
 		return
 	}
-	withoutAPIs, withAPIs := renderFunc(without), renderFunc(with)
-	base, err := withoutAPIs(values.CopyMap(vals))
+	base, err := other(values.CopyMap(vals))
 	if err != nil {
 		return
 	}
-	again, err := withoutAPIs(values.CopyMap(vals))
+	again, err := other(values.CopyMap(vals))
 	if err != nil {
 		return
 	}
@@ -278,15 +299,12 @@ func keepBootstrapKeys(without, with *render.Renderer, vals map[string]interface
 		}
 		mutated := values.CopyMap(vals)
 		values.Delete(mutated, f.Path)
-		snap, err := withoutAPIs(values.CopyMap(mutated))
+		snap, err := other(values.CopyMap(mutated))
 		if err == nil && compare.Equal(base, snap, noise) {
 			continue
 		}
-		// A failure that the APIs do not fix, as a schema that needs the key, is not about the CRD.
-		if err != nil {
-			if _, err := withAPIs(mutated); err != nil {
-				continue
-			}
+		if err != nil && !breaks(mutated) {
+			continue
 		}
 		res.Findings[i].Status = probe.Alive
 	}

@@ -196,6 +196,31 @@ spec:
 	}
 }
 
+func TestArgoNeverUpgrades(t *testing.T) {
+	root := t.TempDir()
+	upgradeChart(t, filepath.Join(root, "charts", "hooks"))
+	file := filepath.Join(root, "apps", "web.yaml")
+	writeFile(t, file, `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+spec:
+  source:
+    repoURL: https://example.com/repo
+    path: charts/hooks
+    helm:
+      values: |
+        password: secret
+        hook:
+          enabled: false
+`)
+	out, _ := runCLI(t, "check", "--app", file, "--repo-root", root, "-o", "json", "--fail-on", "none")
+	_, keys := statuses(t, out)
+	if s := keys["hook.enabled"].Status; !strings.HasPrefix(s, "DEAD") {
+		t.Errorf("hook.enabled = %s: Argo CD renders as helm template, so an upgrade never reads it", s)
+	}
+}
+
 func TestLocalChartWithoutItsDependencies(t *testing.T) {
 	srv := helmRepo(t)
 	for _, tt := range []struct{ repository, want, note string }{

@@ -310,6 +310,28 @@ func (r *Renderer) WithAPIVersions(apis []string) *Renderer {
 	return &Renderer{chart: r.chart, opts: r.opts, caps: caps, crds: r.crds, skipSchema: r.skipSchema, declared: r.declared}
 }
 
+// AsUpgrade returns a renderer for the same chart that renders as helm upgrade and Flux do on
+// a release that is already installed.
+func (r *Renderer) AsUpgrade() *Renderer {
+	opts := r.opts
+	opts.IsInstall, opts.IsUpgrade, opts.Revision = false, true, 2
+	return &Renderer{chart: r.chart, opts: opts, caps: r.caps, crds: r.crds, skipSchema: r.skipSchema, declared: r.declared}
+}
+
+// UsesUpgrade reports whether a template of the chart or a subchart reads .Release.IsUpgrade.
+func (r *Renderer) UsesUpgrade() bool {
+	var walk func(c *chart.Chart) bool
+	walk = func(c *chart.Chart) bool {
+		for _, t := range c.Templates {
+			if bytes.Contains(t.Data, []byte(".Release.IsUpgrade")) {
+				return true
+			}
+		}
+		return slices.ContainsFunc(c.Dependencies(), walk)
+	}
+	return walk(r.chart)
+}
+
 // WithoutAPIVersions returns a renderer for a cluster that does not serve the group/version of
 // each of apis yet, as before its CRDs are installed.
 func (r *Renderer) WithoutAPIVersions(apis []string) *Renderer {
