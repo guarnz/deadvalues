@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -123,6 +124,39 @@ func TestHighest(t *testing.T) {
 		got, found := highest(tags, c)
 		if got != tc.want || found != tc.found {
 			t.Errorf("highest(%q) = %q, %v; want %q, %v", tc.version, got, found, tc.want, tc.found)
+		}
+	}
+}
+
+func TestRefusedSaysWhatToCheck(t *testing.T) {
+	ghcr := errors.New(`failed to perform "FetchReference" on source: GET "https://ghcr.io/token?scope=x": response status code 403: denied: requested access to the resource is denied`)
+	for _, tt := range []struct {
+		err   error
+		where string
+		oci   bool
+		want  string
+	}{
+		{ghcr, "ghcr.io/home-operations/charts-mirror/trivy-operator", true, "not found, or private and no credentials (for a private registry, run `helm registry login ghcr.io`): failed to perform"},
+		{errors.New("GET https://charts.example.com/index.yaml: 401 Unauthorized"), "https://charts.example.com", false, "access denied (for a private repository, add it with `helm repo add`"},
+		{errors.New(`GET "https://ghcr.io/v2/x/manifests/9.9.9": response status code 404: manifest unknown`), "ghcr.io/x", true, "not found, check the chart name and version: "},
+		{errors.New("dial tcp 1.2.3.4:443: connect: connection refused"), "ghcr.io/x", true, "dial tcp"},
+	} {
+		if got := refused(tt.err, tt.where, tt.oci).Error(); !strings.HasPrefix(got, tt.want) {
+			t.Errorf("refused(%q) = %q, want it to start with %q", tt.err, got, tt.want)
+		}
+	}
+}
+
+func TestPrivateRepositoryAsksForCredentials(t *testing.T) {
+	for status, want := range map[int]string{
+		http.StatusUnauthorized: "add it with `helm repo add` and its username and password",
+		http.StatusNotFound:     "check the chart name and version",
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) }))
+		_, err := NewLoader(t.TempDir(), false).Load(context.Background(), Ref{Repo: srv.URL, Chart: "web", Version: "1.0.0"})
+		srv.Close()
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("status %d: %v, want %q", status, err, want)
 		}
 	}
 }
