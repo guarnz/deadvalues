@@ -12,7 +12,6 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/spf13/cobra"
 
-	"github.com/guarnz/deadvalues/internal/argo"
 	"github.com/guarnz/deadvalues/internal/diff"
 	"github.com/guarnz/deadvalues/internal/report"
 	"github.com/guarnz/deadvalues/internal/source"
@@ -218,10 +217,7 @@ func (g *globals) diffTarget(ctx context.Context, t *targetFlags, from, to, base
 	var old map[string]job
 	var s *sides
 	if gitMode {
-		root := t.repoRoot
-		if root == "" {
-			root = argo.RepoRoot(t.app)
-		}
+		root := findRoot(t.repoRoot, t.app)
 		var err error
 		s, err = g.gitSides(root, base, head)
 		if err != nil {
@@ -331,10 +327,7 @@ func (g *globals) diffDir(ctx context.Context, dir, repoRoot, base, head string,
 	if err != nil {
 		return nil, err
 	}
-	root := repoRoot
-	if root == "" {
-		root = argo.RepoRoot(filepath.Join(absDir, "x"))
-	}
+	root := findRoot(repoRoot, filepath.Join(absDir, "x"))
 	s, err := g.gitSides(root, base, head)
 	if err != nil {
 		return nil, err

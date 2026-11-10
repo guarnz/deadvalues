@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"github.com/guarnz/deadvalues/internal/argo"
 	"github.com/guarnz/deadvalues/internal/probe"
 	"github.com/guarnz/deadvalues/internal/prune"
 	"github.com/guarnz/deadvalues/internal/report"
@@ -54,10 +53,7 @@ diff first.`,
 
 			var shared map[string][]string
 			if t.app != "" {
-				root := t.repoRoot
-				if root == "" {
-					root = argo.RepoRoot(t.app)
-				}
+				root := findRoot(t.repoRoot, t.app)
 				shared = g.otherUsers(t.app, root)
 			}
 

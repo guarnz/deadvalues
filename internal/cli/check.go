@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/guarnz/deadvalues/internal/argo"
 	"github.com/guarnz/deadvalues/internal/report"
 )
 
@@ -45,10 +44,7 @@ files (-f): their chart is then found from the app that uses them.`,
 			}
 			report.ResolveShared(reports)
 			if t.app != "" {
-				root := t.repoRoot
-				if root == "" {
-					root = argo.RepoRoot(t.app)
-				}
+				root := findRoot(t.repoRoot, t.app)
 				users := g.otherUsers(t.app, root)
 				for _, r := range reports {
 					report.MarkShared(r, users, normPath)

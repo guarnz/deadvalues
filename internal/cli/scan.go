@@ -50,10 +50,7 @@ reported as ERROR in the summary.`,
 			if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 				return usageErr("%s is not a directory", args[0])
 			}
-			root := repoRoot
-			if root == "" {
-				root = argo.RepoRoot(filepath.Join(dir, "x"))
-			}
+			root := findRoot(repoRoot, filepath.Join(dir, "x"))
 
 			var changed map[string]bool
 			if changedSince != "" {

@@ -74,7 +74,7 @@ Argo CD renders a kustomize directory with `helmCharts:` through `kustomize buil
 | `includeCRDs` | the `crds/` files of subcharts count in the comparison only with `true`, because kustomize leaves them out by default |
 | `resources`, `components` | local bases and components are read too, and so are the `kustomize.components` of the Application |
 
-A directory an Application points at is shown with the Application's name. `scan` also reads the kustomize directories with `helmCharts:` that no Application points at, which covers an `ApplicationSet` with a git directory generator and plain `kustomize build`: they are shown with their path, such as `apps/immich`. When two charts of one kustomization would get the same name, such as two entries with the same `releaseName`, the chart name is added: `apps/nextcloud/nextcloud/app-template`.
+A directory an Application points at is shown with the Application's name. `scan` also reads the kustomize directories with `helmCharts:` that no Application points at, which covers an `ApplicationSet` with a git directory generator and plain `kustomize build`: they are shown with their path, such as `apps/immich`. When two charts of one kustomization would get the same name, such as two entries with the same `releaseName`, the chart name is added: `apps/nextcloud/nextcloud/app-template`. `--only` and `--skip` take that name, which picks one chart, or the directory, which picks all of them.
 
 Not taken into account: patches, which kustomize applies after the chart is rendered (a note says so); remote bases; `helmCharts` declared through `generators:`. `prune` leaves keys in `valuesInline` in place.
 
