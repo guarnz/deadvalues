@@ -163,7 +163,7 @@ func (l *Loader) oci(name, version string) (*chart.Chart, error) {
 	} else if c, ok := constraint(version); ok {
 		tags, err := retry.Do(func() ([]string, error) { return client.Tags(name) })
 		if err != nil {
-			return nil, fmt.Errorf("oci://%s: listing tags for %q: %w", name, version, err)
+			return nil, fmt.Errorf("oci://%s: listing tags for %q: %w", name, version, refused(err, name, true))
 		}
 		v, ok := highest(tags, c)
 		if !ok {
@@ -175,7 +175,7 @@ func (l *Loader) oci(name, version string) (*chart.Chart, error) {
 		return pull(client, name+sep+version)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("oci://%s%s%s: %w", name, sep, version, err)
+		return nil, fmt.Errorf("oci://%s%s%s: %w", name, sep, version, refused(err, name, true))
 	}
 	return v2(loader.LoadArchive(bytes.NewReader(data)))
 }
@@ -232,7 +232,7 @@ func (l *Loader) http(ctx context.Context, ref Ref) (*chart.Chart, error) {
 
 	raw, err := retry.Do(func() ([]byte, error) { return l.get(ctx, base+"/index.yaml") })
 	if err != nil {
-		return nil, err
+		return nil, refused(err, base, false)
 	}
 	var idx repo.IndexFile
 	if err := yaml.Unmarshal(raw, &idx); err != nil {
@@ -267,9 +267,33 @@ func (l *Loader) http(ctx context.Context, ref Ref) (*chart.Chart, error) {
 		return pull(client, target.Host+target.Path)
 	})
 	if err != nil {
-		return nil, err
+		return nil, refused(err, target.Host+target.Path, target.Scheme == "oci")
 	}
 	return v2(loader.LoadArchive(bytes.NewReader(data)))
+}
+
+var (
+	denied   = regexp.MustCompile(`status code 40[13]\b|: 40[13] |\b(denied|unauthorized)\b`)
+	notFound = regexp.MustCompile(`status code 404\b|: 404 |manifest unknown`)
+)
+
+// refused puts what to check before the answer of a registry or repository that turned the chart
+// down; an OCI registry answers 401 or 403 to a chart that does not exist as well.
+func refused(err error, where string, oci bool) error {
+	if err == nil || retry.Transient(err) {
+		return err
+	}
+	msg := err.Error()
+	switch {
+	case denied.MatchString(msg) && oci:
+		host, _, _ := strings.Cut(where, "/")
+		return fmt.Errorf("not found, or private and no credentials (for a private registry, run `helm registry login %s`): %w", host, err)
+	case denied.MatchString(msg):
+		return fmt.Errorf("access denied (for a private repository, add it with `helm repo add` and its username and password): %w", err)
+	case notFound.MatchString(msg):
+		return fmt.Errorf("not found, check the chart name and version: %w", err)
+	}
+	return err
 }
 
 func (l *Loader) get(ctx context.Context, u string) ([]byte, error) {
