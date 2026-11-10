@@ -219,6 +219,11 @@ func (g *globals) analyze(ctx context.Context, j job, ref source.Ref) (*analysis
 	if !j.installOnly && r.UsesUpgrade() {
 		keepUpgradeKeys(r, j.vals.Values, res)
 	}
+	for i, f := range res.Findings {
+		if f.Status == probe.Dead {
+			res.Findings[i].ReadIn, res.Findings[i].Unread = r.Mention(f.Path)
+		}
+	}
 	a := &analysis{renderer: r, defaults: defaults, result: res, took: time.Since(start)}
 
 	dead, needsAPI := false, false

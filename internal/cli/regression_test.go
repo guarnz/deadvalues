@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -23,8 +24,8 @@ func TestRegressionRealCharts(t *testing.T) {
 
 	out, _ = runCLI(t, "check", "--chart", n8nChart, "-f", "../../testdata/values/n8n.yaml", "--release", "n8n", "-n", "apps", "-o", "json")
 	_, keys = statuses(t, out)
-	if k := keys["strategy.rollingUpdate"]; k.Status != "DEAD" {
-		t.Errorf("n8n strategy.rollingUpdate = %+v, want DEAD", k)
+	if k := keys["strategy.rollingUpdate"]; k.Status != "DEAD" || !strings.Contains(k.Detail, "read in n8n/templates/") {
+		t.Errorf("n8n strategy.rollingUpdate = %+v, want DEAD, read by a template only when type is RollingUpdate", k)
 	}
 	if k := keys["main.persistence.size"]; k.Status != "ALIVE" {
 		t.Errorf("n8n main.persistence.size = %+v, want ALIVE", k)

@@ -293,10 +293,20 @@ func findingDetail(f probe.Finding) string {
 		}
 		return "= chart default " + short(f.Default)
 	case probe.Dead:
-		if !f.HasDefault {
-			return short(f.Value) + "  (key not in chart values.yaml)"
+		why := "no effect with the current values"
+		switch {
+		case f.ReadIn != "":
+			why = "read in " + f.ReadIn + " only under a condition the current values do not meet"
+		case f.Unread:
+			why = "no template mentions it"
 		}
-		return short(f.Value) + "  (chart default " + outline(f.Default) + "; no effect with the current values)"
+		if !f.HasDefault {
+			if f.ReadIn == "" {
+				return short(f.Value) + "  (key not in chart values.yaml)"
+			}
+			return short(f.Value) + "  (key not in chart values.yaml; " + why + ")"
+		}
+		return short(f.Value) + "  (chart default " + outline(f.Default) + "; " + why + ")"
 	case probe.Conditional:
 		if len(f.RequiresAPI) > 0 {
 			return short(f.Value) + "  (only when the cluster serves " + strings.Join(f.RequiresAPI, " + ") + ")"
