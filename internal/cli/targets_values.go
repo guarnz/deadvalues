@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/guarnz/deadvalues/internal/argo"
 	"github.com/guarnz/deadvalues/internal/source"
 	"github.com/guarnz/deadvalues/internal/values"
 )
@@ -19,10 +18,7 @@ func (g *globals) valuesJobs(t *targetFlags) ([]job, error) {
 		}
 		only[normPath(f)] = true
 	}
-	root := t.repoRoot
-	if root == "" {
-		root = argo.RepoRoot(t.values[0])
-	}
+	root := findRoot(t.repoRoot, t.values[0])
 
 	all, _, err := g.dirJobs(root, root, nil)
 	if err != nil {

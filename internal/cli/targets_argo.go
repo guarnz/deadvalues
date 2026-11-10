@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/guarnz/deadvalues/internal/argo"
@@ -34,7 +35,7 @@ func appPaths(app *argo.Application, root string) []string {
 func (g *globals) kustomizeJobs(dir, root string, filter *appFilter) ([]job, []*report.Check) {
 	file := argo.KustomizationFile(dir)
 	rel := relPath(root, dir)
-	if file == "" || filter.skipsDir(dir) || !filter.keep(file, rel) {
+	if file == "" || filter.skipsDir(dir) {
 		return nil, nil
 	}
 	app := &argo.Application{Name: rel, File: file, Sources: []argo.Source{{Path: rel}}}
@@ -43,9 +44,13 @@ func (g *globals) kustomizeJobs(dir, root string, filter *appFilter) ([]job, []*
 		return nil, nil
 	}
 	if err != nil {
+		if !filter.keep(file, rel) {
+			return nil, nil
+		}
 		return nil, []*report.Check{failedAt(rel, file, err)}
 	}
-	return js, nil
+	// Each chart is a target of its own, picked by the directory or by its name in the report.
+	return slices.DeleteFunc(js, func(j job) bool { return !filter.keep(file, rel, j.name) }), nil
 }
 
 func (g *globals) appJobs(app *argo.Application, root string, t *targetFlags) ([]job, error) {
