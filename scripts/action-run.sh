@@ -95,19 +95,6 @@ def src: if . == null or (.file // "") == "" then ""
 EOF
 )
 
-# problems_jq counts findings at $level the way the CLI's --fail-on does, for a
-# report whose command exited 2 because some app also failed.
-problems_jq=$(cat <<'EOF'
-({"breaking": ["BREAKING"], "pinned": ["BREAKING", "PINNED"], "changed": ["BREAKING", "PINNED", "CHANGED"],
-  "dead": ["DEAD"], "conditional": ["DEAD", "CONDITIONAL"], "redundant": ["DEAD", "CONDITIONAL", "REDUNDANT"]}[$level] // []) as $kinds
-| [.[] | if type == "object" and has("schemaVersion") then .results[] elif type == "array" then .[] else . end
-    | (.changes[]? | select(.ignored != true) | .kind),
-      (.keys[]? | select(.ignored != true and (.usedBy // "") == "" and ((.sharedWith // []) | length) == 0) | .status | split(" ")[0])
-    | select(. as $k | $kinds | index($k))]
-| length
-EOF
-)
-
 stats_jq='"[Apps: \($reports | map(select((.renders // 0) > 0 or (.error // "") != "") | .app) | unique | length)], [Renders: \($reports | map(.renders // 0) | add // 0)], [Run: \((($reports | map(.durationMs // 0) | add // 0) / 1000 | ceil))s]"'
 
 # output prints what the command with id $1 wrote and, when it failed, its errors.
@@ -169,9 +156,9 @@ summary() {
   fi
   if [[ "$status" -ge 2 ]] && [[ "$fail" -lt 2 ]]; then
     if [[ "$fail" -eq 0 ]]; then
-      printf "> [!WARNING]\n> Some apps could not be analyzed, see the errors below. This repository's workflow sets \`fail-on-error: false\`, so the check passes anyway.\n\n"
+      printf "> [!WARNING]\n> Some apps could not be analyzed, see the errors below. \`fail-on-error\` is false, so the check passes anyway.\n\n"
     else
-      printf "> [!WARNING]\n> Some apps could not be analyzed, see the errors below. This repository's workflow sets \`fail-on-error: false\`, so the errors alone do not fail the check.\n\n"
+      printf "> [!WARNING]\n> Some apps could not be analyzed, see the errors below. \`fail-on-error\` is false, so the errors alone do not fail the check.\n\n"
     fi
   fi
   if [[ -n "$majors" ]]; then
@@ -221,9 +208,9 @@ case "$MODE" in
     exit 2
     ;;
 esac
-fail_on_error="${FAIL_ON_ERROR:-true}"
+fail_on_error="${FAIL_ON_ERROR:-}"
 case "${fail_on_error,,}" in
-  true|false) fail_on_error="${fail_on_error,,}" ;;
+  ""|true|false) fail_on_error="${fail_on_error,,}" ;;
   *)
     echo "::error title=deadvalues::fail-on-error must be true or false, got \"$fail_on_error\""
     exit 2
@@ -265,6 +252,14 @@ if [[ -n "$diff_level" ]]; then diff_fail=(--fail-on "$diff_level"); fi
 if [[ -n "$scan_level" ]]; then scan_fail=(--fail-on "$scan_level"); fi
 skip=()
 if [[ -n "${SKIP:-}" ]]; then skip=(--skip "$SKIP"); fi
+errors=()
+if [[ -n "$fail_on_error" ]]; then
+  if deadvalues scan --help 2>/dev/null | grep -q -- --fail-on-error; then
+    errors=(--fail-on-error="$fail_on_error")
+  else
+    echo "::warning title=deadvalues::fail-on-error needs deadvalues v0.2.0 or later; this version ignores it"
+  fi
+fi
 
 if [[ -n "${ARGS:-}" ]]; then
   read -ra argv <<< "$ARGS"
@@ -275,38 +270,26 @@ elif [[ "$MODE" = "diff" ]] && [[ -z "$base" ]]; then
   status=2
 else
   if [[ -n "$base" ]] && [[ "$MODE" != "scan" ]]; then
-    dv diff "$APPS" --base "$base" ${diff_fail[@]+"${diff_fail[@]}"} ${skip[@]+"${skip[@]}"}
-    echo "${diff_level:-breaking}" > "$work/$n.level"
+    dv diff "$APPS" --base "$base" ${diff_fail[@]+"${diff_fail[@]}"} ${errors[@]+"${errors[@]}"} ${skip[@]+"${skip[@]}"}
   fi
   if [[ "$MODE" != "diff" ]]; then
     if [[ -n "$base" ]]; then
-      dv scan "$APPS" --changed-since "$base" --details ${scan_fail[@]+"${scan_fail[@]}"} ${skip[@]+"${skip[@]}"}
+      dv scan "$APPS" --changed-since "$base" --details ${scan_fail[@]+"${scan_fail[@]}"} ${errors[@]+"${errors[@]}"} ${skip[@]+"${skip[@]}"}
     else
       if [[ -z "$note" ]]; then note="No base to compare with (no pull request, or the first push of a branch)."; fi
       note="$note Every app was scanned."
-      dv scan "$APPS" --details ${scan_fail[@]+"${scan_fail[@]}"} ${skip[@]+"${skip[@]}"}
+      dv scan "$APPS" --details ${scan_fail[@]+"${scan_fail[@]}"} ${errors[@]+"${errors[@]}"} ${skip[@]+"${skip[@]}"}
     fi
-    echo "${scan_level:-dead}" > "$work/$n.level"
   fi
 fi
 
-# fail is the code the job ends with. With fail-on-error false, an app that
-# could not be analyzed does not fail it; findings and failed commands still do.
+# fail is the code the job ends with, the one deadvalues exited with. With
+# fail-on-error false it does not count apps that could not be analyzed, but the
+# status output still says 2 for them.
 fail=$status
-if [[ "$status" -ge 2 ]] && [[ "$fail_on_error" = "false" ]] && [[ -z "$blocker" ]] && [[ -z "${ARGS:-}" ]] && command -v jq >/dev/null; then
-  fail=0
-  for ((i = 1; i <= n; i++)); do
-    rc="$(cat "$work/$i.rc")"
-    if [[ "$rc" -eq 1 ]]; then
-      fail=$((fail > 1 ? fail : 1))
-    elif [[ "$rc" -ge 2 ]]; then
-      if [[ ! -s "$work/$i.json" ]] || [[ "$(jq -s '[.[] | if type == "object" and has("schemaVersion") then .results[] elif type == "array" then .[] else . end | select((.error // "") != "")] | length' "$work/$i.json")" -eq 0 ]]; then
-        fail=2
-      elif [[ "$(jq -s --arg level "$(cat "$work/$i.level")" "$problems_jq" "$work/$i.json")" -gt 0 ]]; then
-        fail=$((fail > 1 ? fail : 1))
-      fi
-    fi
-  done
+if [[ "$status" -lt 2 ]] && [[ "$n" -gt 0 ]] && command -v jq >/dev/null; then
+  failed="$(cat "$work"/*.json 2>/dev/null | jq -s '[.[] | if type == "object" and has("schemaVersion") then .results[] elif type == "array" then .[] else . end | select((.error // "") != "")] | length')"
+  if [[ "${failed:-0}" -gt 0 ]]; then status=2; fi
 fi
 
 summary > "$report"

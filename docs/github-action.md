@@ -106,9 +106,9 @@ To leave out apps that cannot render offline, list them in `skip`, by name or di
 |---|---|---|
 | `fail-on-diff` | a chart bump at that level: `breaking` (default), `pinned` or `changed` | `none` or `false` |
 | `fail-on-scan` | a key at that level: `dead`, `conditional` or `redundant` | `none` (default) or `false` |
-| `fail-on-error` | an app that cannot be analyzed: a chart that does not render or cannot be downloaded (`true`, default) | `false` |
+| `fail-on-error` | an app that cannot be analyzed: a chart that does not render or cannot be downloaded (`true`, default, or `failOnError` of [`.deadvalues.yaml`](configuration.md#fail-on)) | `false` |
 
-With `fail-on-error: false` the errors are still in the report and the comment, with a warning at the top, and the `status` output is still `2`. Findings at the fail-on levels still fail the check, and so does a command that fails as a whole (a wrong `path`, for instance). Telling the two apart needs `jq`, which GitHub-hosted runners have; on a self-hosted runner without it, errors fail the check as with `true`.
+`fail-on-error` is passed to deadvalues as `--fail-on-error`, so the check fails exactly when the CLI exits non-zero. With `false` the errors are still in the report and the comment, with a warning at the top, and the `status` output is still `2`. Findings at the fail-on levels still fail the check, and so does a command that fails as a whole (a wrong `path`, for instance). It needs deadvalues v0.2.0 or later; an older `version` ignores it with a warning.
 
 On a pull request, only the apps the change touches can fail the check: an app that already had an error before the change, and that the change does not touch, is left out of the report.
 
@@ -142,7 +142,7 @@ The comment then starts with:
 
 ```
 > [!WARNING]
-> Some apps could not be analyzed, see the errors below. This repository's workflow sets `fail-on-error: false`, so the check passes anyway.
+> Some apps could not be analyzed, see the errors below. `fail-on-error` is false, so the check passes anyway.
 ```
 
 ## Your own command
@@ -224,7 +224,7 @@ The `version` input overrides it: an exact tag such as `v0.1.0`, or `latest`. Re
 | `skip` | | Apps or directories to leave out of the built-in flow, comma-separated: an app by its name, `namespace/name` or the name in the report. Adds to `skip` in [`.deadvalues.yaml`](configuration.md#skip) |
 | `fail-on-diff` | `breaking` | `breaking`, `pinned`, `changed`, `none` or `false` (the same as `none`) |
 | `fail-on-scan` | `none` | `dead`, `conditional`, `redundant`, `none` or `false` (the same as `none`) |
-| `fail-on-error` | `true` | `true` or `false`; with `false` an app that cannot be analyzed is reported but does not fail the check, see [When the check fails](#when-the-check-fails) |
+| `fail-on-error` | `failOnError` of `.deadvalues.yaml`, else `true` | `true` or `false`; with `false` an app that cannot be analyzed is reported but does not fail the check, see [When the check fails](#when-the-check-fails) |
 | `comment` | `true` | Post or update the pull request comment |
 | `version` | the action's ref | Release to install, e.g. `v0.1.0`, or `latest`; see [Versions](#versions) |
 | `github-token` | `github.token` | Token to download the release and comment |

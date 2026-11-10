@@ -38,6 +38,7 @@ deadvalues diff [dir] [flags]
       --base string        git ref of the "before" side (default: where --head branched from)
       --chart string       local chart directory or .tgz, repo/name from "helm repo add", chart name with --repo, or oci:// reference
       --fail-on string     breaking | pinned | changed | none (default "breaking")
+      --fail-on-error      exit 2 when an app cannot be analyzed; with false it is still reported, and only findings set the exit code (default true)
       --from string        old chart version (default: version in the manifest)
       --head string        git ref of the "after" side (default: your working tree)
   -h, --help               help for diff

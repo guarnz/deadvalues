@@ -247,16 +247,43 @@ func (g *globals) decideColor(colorSet bool) bool {
 // this command, else the default.
 func (g *globals) failOn(cmd *cobra.Command, flag, def string, allowed []string) (string, error) {
 	v := def
-	switch {
+	switch cfg := string(g.cfg.FailOn); {
 	case cmd.Flags().Changed("fail-on"):
 		v = flag
-	case g.cfg.FailOn != "" && slices.Contains(allowed, g.cfg.FailOn):
-		v = g.cfg.FailOn
+	case cfg != "" && slices.Contains(allowed, cfg):
+		v = cfg
+	}
+	if strings.EqualFold(v, "false") {
+		v = "none"
 	}
 	if !slices.Contains(allowed, v) {
-		return "", usageErr("--fail-on must be one of %s", strings.Join(allowed, ", "))
+		return "", usageErr("--fail-on must be one of %s, or false", strings.Join(allowed, ", "))
 	}
 	return v, nil
+}
+
+const failOnErrorUsage = "exit 2 when an app cannot be analyzed; with false it is still reported, and only findings set the exit code"
+
+// failOnError returns the flag value, else failOnError of the config, else true.
+func (g *globals) failOnError(cmd *cobra.Command, flag bool) bool {
+	if !cmd.Flags().Changed("fail-on-error") && g.cfg.FailOnError != nil {
+		return *g.cfg.FailOnError
+	}
+	return flag
+}
+
+// exit is 2 when an app failed and errors count, else 1 with findings at the fail-on level.
+func (g *globals) exit(failed, problems int, failOnError bool) error {
+	switch {
+	case failed > 0 && failOnError:
+		return &exitError{code: 2}
+	case failed > 0:
+		fmt.Fprintf(g.stderr, "note: %d app(s) could not be analyzed; fail-on-error is false, so they do not change the exit code\n", failed)
+	}
+	if problems > 0 {
+		return &exitError{code: 1}
+	}
+	return nil
 }
 
 func (g *globals) writer() *report.Writer {

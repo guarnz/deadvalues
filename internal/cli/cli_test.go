@@ -385,6 +385,14 @@ func TestFailOnAndIgnore(t *testing.T) {
 	if _, code := runWithConfig(t, cfg2, "check", "--chart", casesChart, "-f", casesValues, "--fail-on", "dead"); code != 1 {
 		t.Errorf("--fail-on overrides config: exit %d, want 1", code)
 	}
+	writeFile(t, cfg2, "failOn: false\n")
+	if _, code := runWithConfig(t, cfg2, "check", "--chart", casesChart, "-f", casesValues); code != 0 {
+		t.Errorf("failOn: false in the config is none: exit %d, want 0", code)
+	}
+	writeFile(t, cfg2, "failOn: true\n")
+	if _, code := runWithConfig(t, cfg2, "check", "--chart", casesChart, "-f", casesValues); code != 2 {
+		t.Errorf("failOn: true is not a level: exit %d, want 2", code)
+	}
 }
 
 func TestUsageErrors(t *testing.T) {

@@ -21,11 +21,12 @@ var diffLevels = []string{"breaking", "pinned", "changed", "none"}
 
 func newDiffCmd(g *globals) *cobra.Command {
 	var (
-		t          targetFlags
-		from, to   string
-		base, head string
-		failOn     string
-		skip       []string
+		t           targetFlags
+		from, to    string
+		base, head  string
+		failOn      string
+		failOnError bool
+		skip        []string
 	)
 	cmd := &cobra.Command{
 		Use:   "diff [dir]",
@@ -95,20 +96,14 @@ same is done for the Applications and HelmReleases that load those files.`,
 			if err := g.emit(func(w *report.Writer) error { return w.Diffs(reports) }); err != nil {
 				return err
 			}
-			problems, failed := 0, false
+			problems, failed := 0, 0
 			for _, r := range reports {
 				if r.Error != "" {
-					failed = true
+					failed++
 				}
 				problems += r.Problems(level)
 			}
-			switch {
-			case failed:
-				return &exitError{code: 2}
-			case problems > 0:
-				return &exitError{code: 1}
-			}
-			return nil
+			return g.exit(failed, problems, g.failOnError(cmd, failOnError))
 		},
 	}
 	t.register(cmd.Flags(), false)
@@ -117,6 +112,7 @@ same is done for the Applications and HelmReleases that load those files.`,
 	cmd.Flags().StringVar(&base, "base", "", `git ref of the "before" side (default: where --head branched from)`)
 	cmd.Flags().StringVar(&head, "head", "", `git ref of the "after" side (default: your working tree)`)
 	cmd.Flags().StringVar(&failOn, "fail-on", "breaking", "breaking | pinned | changed | none")
+	cmd.Flags().BoolVar(&failOnError, "fail-on-error", true, failOnErrorUsage)
 	cmd.Flags().StringSliceVar(&skip, "skip", nil, "with a directory, skip these Applications or HelmReleases (by name, namespace/name or the name in the report) or directories")
 	return cmd
 }

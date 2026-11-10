@@ -435,4 +435,38 @@ spec:
 	if !strings.Contains(out, "::error ") || !strings.Contains(out, "title=deadvalues%3A broken::") {
 		t.Errorf("github output must annotate the failed target:\n%s", out)
 	}
+
+	if out, code := runCLI(t, "scan", dir, "--repo-root", root, "--fail-on-error=false"); code != 0 || !strings.Contains(out, "broken") {
+		t.Errorf("with --fail-on-error=false the error is reported and exits 0, got %d\n%s", code, out)
+	}
+	cfg := filepath.Join(t.TempDir(), ".deadvalues.yaml")
+	writeFile(t, cfg, "failOnError: false\n")
+	if _, code := runWithConfig(t, cfg, "scan", dir, "--repo-root", root); code != 0 {
+		t.Errorf("failOnError: false in the config exits 0, got %d", code)
+	}
+	if _, code := runWithConfig(t, cfg, "scan", dir, "--repo-root", root, "--fail-on-error"); code != 2 {
+		t.Errorf("--fail-on-error overrides the config: exit %d, want 2", code)
+	}
+
+	writeFile(t, filepath.Join(root, "values", "cases.yaml"), mustRead(t, casesValues))
+	writeFile(t, filepath.Join(root, "apps", "good.yaml"), `apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: good
+spec:
+  sources:
+    - repoURL: https://example.com/repo
+      ref: values
+    - repoURL: https://example.com/repo
+      path: charts/cases
+      helm:
+        valueFiles:
+          - $values/values/cases.yaml
+`)
+	if out, code := runCLI(t, "scan", dir, "--repo-root", root, "--fail-on-error=false"); code != 1 {
+		t.Errorf("findings still exit 1 with --fail-on-error=false, got %d\n%s", code, out)
+	}
+	if _, code := runCLI(t, "scan", dir, "--repo-root", root, "--fail-on-error=false", "--fail-on", "false"); code != 0 {
+		t.Errorf("--fail-on false is none: exit %d, want 0", code)
+	}
 }

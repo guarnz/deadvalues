@@ -350,19 +350,13 @@ func (g *globals) check(ctx context.Context, j job) *report.Check {
 	return c
 }
 
-func checkExit(reports []*report.Check, failOn string) error {
-	problems, failed := 0, false
+func (g *globals) checkExit(reports []*report.Check, failOn string, failOnError bool) error {
+	problems, failed := 0, 0
 	for _, r := range reports {
 		if r.Error != "" {
-			failed = true
+			failed++
 		}
 		problems += r.Problems(failOn)
 	}
-	switch {
-	case failed:
-		return &exitError{code: 2}
-	case problems > 0:
-		return &exitError{code: 1}
-	}
-	return nil
+	return g.exit(failed, problems, failOnError)
 }

@@ -46,3 +46,5 @@ Only the `table` output has color.
 | 0 | Nothing at or above `--fail-on` |
 | 1 | Findings at or above `--fail-on` (`check`/`scan`: `dead` by default; `diff`: `breaking`) |
 | 2 | Usage error, chart not found, render failed (a target listed as not analyzed does not count) |
+
+With `--fail-on-error=false`, or `failOnError: false` in [`.deadvalues.yaml`](configuration.md#fail-on), an app that cannot be analyzed is still reported but does not exit 2: the code is 1 or 0 from the findings, as in CI where a registry outage should not block a pull request that a breaking change would. A usage error, or a directory or ref that does not exist, still exits 2. `--fail-on false` is the same as `--fail-on none`.
