@@ -27,6 +27,25 @@ func TestMatch(t *testing.T) {
 	}
 }
 
+func TestMatchKeysWithDots(t *testing.T) {
+	label := []string{"controllers", "clickhouse", "pod", "labels", "app.kubernetes.io/name"}
+	for _, tt := range []struct {
+		pattern string
+		want    bool
+	}{
+		{"controllers.clickhouse.pod.labels.app.kubernetes.io/name", true},
+		{"controllers.clickhouse.pod.labels", true},
+		{`**.labels.app\.kubernetes\.io/name`, true},
+		{"controllers.clickhouse.pod.labels.app?kubernetes?io/name", true},
+		{"controllers.clickhouse.pod.labels.app.kubernetes.io/other", false},
+		{`**.labels.app\.kubernetes\.io/other`, false},
+	} {
+		if got := Match(tt.pattern, label); got != tt.want {
+			t.Errorf("Match(%q) = %v, want %v", tt.pattern, got, tt.want)
+		}
+	}
+}
+
 func TestIgnoredPerApp(t *testing.T) {
 	c := &Config{Ignore: []Ignore{
 		{App: "n8n", Keys: []string{"strategy.rollingUpdate"}},

@@ -71,15 +71,34 @@ func (c *Config) Ignored(app, chart string, key []string) bool {
 	return false
 }
 
-// Match reports whether pattern matches key or one of its ancestors.
+// Match reports whether pattern matches key or one of its ancestors. A pattern without wildcards
+// also matches the key as reports print it, so a key with dots, as a label name, can be copied.
 func Match(pattern string, key []string) bool {
-	pat := strings.Split(pattern, ".")
+	plain := !strings.ContainsAny(pattern, `*?[\`)
+	pat := splitPattern(pattern)
 	for i := 1; i <= len(key); i++ {
-		if match(pat, key[:i]) {
+		if (plain && strings.Join(key[:i], ".") == pattern) || match(pat, key[:i]) {
 			return true
 		}
 	}
 	return false
+}
+
+// splitPattern splits pattern at the dots no backslash escapes; path.Match then reads `\.` as a
+// dot inside a segment.
+func splitPattern(pattern string) []string {
+	var out []string
+	start := 0
+	for i := 0; i < len(pattern); i++ {
+		switch pattern[i] {
+		case '\\':
+			i++
+		case '.':
+			out = append(out, pattern[start:i])
+			start = i + 1
+		}
+	}
+	return append(out, pattern[start:])
 }
 
 func match(pat, key []string) bool {

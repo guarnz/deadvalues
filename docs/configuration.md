@@ -43,7 +43,7 @@ Charts often render resources only when the cluster serves an API (`.Capabilitie
 
 ## Ignore
 
-In `ignore`, `*` matches one key segment, `**` any number of segments, and a pattern matching a map covers everything under it. `app` is the Application's or HelmRelease's `metadata.name`, without the namespace. `chart` is the chart's `name` in `Chart.yaml`, so one entry covers every app built from it. With both, an app must match both; with neither, the pattern applies to every app. Ignored keys are still analyzed and counted in the summary; they never fail a command.
+In `ignore`, `*` matches one key segment, `**` any number of segments, and a pattern matching a map covers everything under it. A key whose name has dots, such as the label `app.kubernetes.io/name`, can be copied from the report as it is; with a wildcard, escape those dots: `'**.labels.app\.kubernetes\.io/name'` (single quotes, so YAML keeps the backslash). `app` is the Application's or HelmRelease's `metadata.name`, without the namespace. `chart` is the chart's `name` in `Chart.yaml`, so one entry covers every app built from it. With both, an app must match both; with neither, the pattern applies to every app. Ignored keys are still analyzed and counted in the summary; they never fail a command.
 
 ## Fail on
 
