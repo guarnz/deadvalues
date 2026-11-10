@@ -70,8 +70,9 @@ diff first.`,
 			var order []string
 			readOnly := func(o values.Origin) bool { return o.ReadOnly }
 			type done struct {
-				j   job
-				res *probe.Result
+				j       job
+				res     *probe.Result
+				ignored func([]string) bool
 			}
 			var analyzed []done
 			skipped := map[string]bool{}
@@ -87,8 +88,8 @@ diff first.`,
 				if err != nil {
 					return &exitError{code: 2, err: err}
 				}
-				analyzed = append(analyzed, done{j, a.result})
-				ignored := g.ignorer(j.app)
+				ignored := g.ignorer(j.app, a.renderer.Name())
+				analyzed = append(analyzed, done{j, a.result, ignored})
 				for _, f := range a.result.Findings {
 					ok := prunable(f.Status, only, includeConditional) && !ignored(f.Path)
 					origins := j.vals.ExactOrigins(f.Path)
@@ -130,7 +131,7 @@ diff first.`,
 				}
 			}
 			for _, d := range analyzed {
-				ignored := g.ignorer(d.j.app)
+				ignored := d.ignored
 				for _, k := range order {
 					v := votes[k]
 					if !v.agree || !loads(d.j, v.file) {

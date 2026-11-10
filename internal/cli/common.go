@@ -313,8 +313,8 @@ func displayPaths(paths [][]string) string {
 	return strings.Join(out, ", ")
 }
 
-func (g *globals) ignorer(app string) func([]string) bool {
-	return func(path []string) bool { return g.cfg.Ignored(app, path) }
+func (g *globals) ignorer(app, chart string) func([]string) bool {
+	return func(path []string) bool { return g.cfg.Ignored(app, chart, path) }
 }
 
 func (g *globals) check(ctx context.Context, j job) *report.Check {
@@ -334,7 +334,7 @@ func (g *globals) check(ctx context.Context, j job) *report.Check {
 		c.AppFile = j.appFile
 		return c
 	}
-	c := report.NewCheck(j.name, j.appFile, a.renderer.Label(), j.vals, a.result, g.ignorer(j.app), a.took)
+	c := report.NewCheck(j.name, j.appFile, a.renderer.Label(), j.vals, a.result, g.ignorer(j.app, a.renderer.Name()), a.took)
 	c.Notes = append(append([]string{}, j.notes...), a.notes...)
 	if j.only != nil {
 		c.Restrict(j.only, normPath)

@@ -322,6 +322,12 @@ func TestFailOnAndIgnore(t *testing.T) {
 	if !strings.Contains(out, "2 ignored") {
 		t.Errorf("summary should count ignored keys:\n%s", out)
 	}
+	for chart, want := range map[string]int{"cases": 0, "other": 1} {
+		writeFile(t, cfg, "ignore:\n  - chart: "+chart+"\n    keys:\n      - service.prot\n      - monitoring\n")
+		if out, code := runWithConfig(t, cfg, "check", "--chart", casesChart, "-f", casesValues, "--color", "never"); code != want {
+			t.Errorf("ignore for chart %s: exit %d, want %d\n%s", chart, code, want, out)
+		}
+	}
 
 	cfg2 := filepath.Join(t.TempDir(), ".deadvalues.yaml")
 	if err := os.WriteFile(cfg2, []byte("failOn: none\n"), 0o644); err != nil {
