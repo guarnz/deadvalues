@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -204,6 +205,30 @@ func TestDeclaredAPIKeepsBootstrapKeys(t *testing.T) {
 	out, _ = runCLI(t, "check", "--chart", chart, "-f", vals, "-o", "json", "--fail-on", "none")
 	if s := status(out); s != "REQUIRED" {
 		t.Errorf("without the API, trustCRDsExist = %s, want REQUIRED", s)
+	}
+}
+
+func TestSkipInTheConfig(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	app := func(dir, name string) {
+		writeFile(t, filepath.Join(root, dir, name+".yaml"), "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: "+name+
+			"\nspec:\n  source:\n    repoURL: https://example.com/repo\n    path: charts/cases\n    helm:\n      values: |\n        name: "+name+"\n")
+	}
+	app("apps", "one")
+	app("apps", "two")
+	app("apps", "three")
+	app("legacy", "old")
+	cfg := filepath.Join(root, ".deadvalues.yaml")
+	writeFile(t, cfg, "skip:\n  - one\n  - legacy\n")
+	t.Chdir(t.TempDir())
+	out, _ := runWithConfig(t, cfg, "scan", root, "--repo-root", root, "--skip", "two", "-o", "json", "--fail-on", "none")
+	var names []string
+	for _, c := range decodeChecks(t, out) {
+		names = append(names, c.App)
+	}
+	if !slices.Equal(names, []string{"three"}) {
+		t.Errorf("apps %v, want three: one by name and legacy/ as a directory from the config, two from --skip", names)
 	}
 }
 

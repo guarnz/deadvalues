@@ -62,7 +62,7 @@ same is done for the Applications and HelmReleases that load those files.`,
 				if t.app != "" || t.chart != "" || from != "" || to != "" {
 					return usageErr("diff <dir> cannot be combined with --app, --chart, --from or --to")
 				}
-				reports, err = g.diffDir(cmd.Context(), args[0], t.repoRoot, base, head, newAppFilter(nil, skip))
+				reports, err = g.diffDir(cmd.Context(), args[0], t.repoRoot, base, head, newAppFilter(nil, g.skipList(skip)))
 				if err != nil {
 					return &exitError{code: 2, err: err}
 				}

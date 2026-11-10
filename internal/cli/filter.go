@@ -54,6 +54,19 @@ func (f *appFilter) keep(path string, names ...string) bool {
 	return !slices.ContainsFunc(names, func(n string) bool { return slices.Contains(f.skip, n) })
 }
 
+// skipList adds the skip of .deadvalues.yaml to --skip; a directory there is relative to
+// the file, so the same entry works wherever the command runs.
+func (g *globals) skipList(flag []string) []string {
+	out := slices.Clone(flag)
+	for _, s := range g.cfg.Skip {
+		if p := filepath.Join(g.cfgDir, filepath.FromSlash(s)); g.cfgDir != "" && dirExists(p) {
+			s = p
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 func (f *appFilter) skipsDir(path string) bool {
 	if f == nil || path == "" {
 		return false

@@ -18,8 +18,10 @@ type Config struct {
 	KubeVersion string   `json:"kubeVersion"`
 	APIVersions []string `json:"apiVersions"`
 	FailOn      string   `json:"failOn"`
-	Ignore      []Ignore `json:"ignore"`
-	Flux        Flux     `json:"flux"`
+	// Skip adds to --skip: apps by name, or directories relative to the file.
+	Skip   []string `json:"skip"`
+	Ignore []Ignore `json:"ignore"`
+	Flux   Flux     `json:"flux"`
 }
 
 // Flux holds values for ${var} placeholders that Flux postBuild

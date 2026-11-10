@@ -70,7 +70,7 @@ On every commit that changes a YAML file, the hook runs `deadvalues scan . --cha
 
 - **Folder and level:** `args` replaces the defaults, so keep the folder in it: `args: [kubernetes, --fail-on, redundant]`. Without `args`, the folder is the repository root and the level comes from `failOn` in `.deadvalues.yaml`, or `dead`.
 - **Only report:** `args: [., --fail-on, none]` with `verbose: true`, since pre-commit hides the output of hooks that pass.
-- **Apps that cannot render outside the cluster:** `--skip` in `args`, as with `scan`. An error stops the commit even with `--fail-on none`.
+- **Apps that cannot render outside the cluster:** `skip` in [`.deadvalues.yaml`](configuration.md#skip), which the hook, the GitHub Action and `scan` all read, or `--skip` in `args`. An error stops the commit even with `--fail-on none`.
 - **First run:** pre-commit builds deadvalues at the `rev` version, downloading Go if needed. It takes a couple of minutes and about 430 MB in its cache (`~/.cache/pre-commit`); later commits take seconds. Charts are downloaded once and kept in the deadvalues cache.
 - **Binary already installed:** use `id: deadvalues-system` to run the `deadvalues` in your `PATH` instead of building it.
 - After changing `.pre-commit-config.yaml`, `git add` it: pre-commit does not run with an unstaged configuration.
