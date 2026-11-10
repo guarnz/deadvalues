@@ -78,7 +78,20 @@ What runs, by `mode`:
 
 `diff` catches what a chart bump does to your values (the Renovate case); `scan --changed-since` catches dead keys in the apps whose files changed.
 
-To leave out apps that cannot render offline, list them in `skip`, by name or directory; both `diff` and `scan` get it:
+The action already analyzes only the apps a change touches. To not even start the job when nothing under them changes, filter the workflow with `paths`, and list `.deadvalues.yaml` and any local charts too, since a change there also changes the result:
+
+```yaml
+on:
+  pull_request:
+    paths:
+      - kubernetes/**
+      - charts/**
+      - .deadvalues.yaml
+```
+
+If the check is required by a branch ruleset, `paths` leaves it pending forever on a pull request that touches nothing listed, since the workflow never runs. Filter inside the workflow instead, in a first job that lists the changed files and an `if:` on the deadvalues job: a skipped job counts as passed.
+
+To leave out apps that cannot render offline, list them in `skip`, by name or directory, or in `skip` of [`.deadvalues.yaml`](configuration.md#skip); both `diff` and `scan` get it:
 
 ```yaml
 - uses: guarnz/deadvalues@v0
