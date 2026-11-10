@@ -644,6 +644,67 @@ spec:
 	}
 }
 
+func TestScanJudgesAPatchSeveralReleasesShare(t *testing.T) {
+	root := t.TempDir()
+	for name, tpl := range map[string]string{
+		"alpha": "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: alpha\ndata:\n  host: {{ .Values.db.host | quote }}\n  port: {{ .Values.port | quote }}\n",
+		"beta":  "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: beta\ndata:\n  port: {{ .Values.port | quote }}\n",
+	} {
+		writeFile(t, filepath.Join(root, "charts", name, "Chart.yaml"), "apiVersion: v2\nname: "+name+"\nversion: 0.1.0\n")
+		writeFile(t, filepath.Join(root, "charts", name, "values.yaml"), "port: 80\ndb:\n  host: \"\"\n")
+		writeFile(t, filepath.Join(root, "charts", name, "templates", "cm.yaml"), tpl)
+	}
+	writeFile(t, filepath.Join(root, "components", "db", "kustomization.yaml"),
+		"apiVersion: kustomize.config.k8s.io/v1alpha1\nkind: Component\npatches:\n  - path: patch.yaml\n    target:\n      kind: HelmRelease\n")
+	writeFile(t, filepath.Join(root, "components", "db", "patch.yaml"),
+		"apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: any\nspec:\n  values:\n    db:\n      host: pg\n")
+	for _, name := range []string{"alpha", "beta"} {
+		dir := filepath.Join(root, "apps", name)
+		writeFile(t, filepath.Join(dir, "kustomization.yaml"), "resources: [helmrelease.yaml]\ncomponents: [../../components/db]\n")
+		writeFile(t, filepath.Join(dir, "helmrelease.yaml"), `apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: `+name+`
+spec:
+  chart:
+    spec:
+      chart: ./charts/`+name+`
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  values:
+    port: 8080
+    unused: 1
+`)
+	}
+	out, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json", "--fail-on", "none")
+	var checks []struct {
+		App  string
+		Keys []struct{ Key, Status, UsedBy string }
+	}
+	if err := decodeReport(out, &checks); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	got := map[string]string{}
+	for _, c := range checks {
+		for _, k := range c.Keys {
+			got[strings.Split(c.App, ":")[0]+" "+k.Key] = k.Status + " " + k.UsedBy
+		}
+	}
+	for key, want := range map[string]string{
+		"alpha db.host": "ALIVE ",
+		"beta db.host":  "DEAD alpha:default/alpha",
+		"alpha unused":  "DEAD ",
+		"beta unused":   "DEAD ",
+		"beta port":     "ALIVE ",
+	} {
+		if got[key] != want {
+			t.Errorf("%s = %q, want %q: a patch line alpha uses is not dead in beta, its own values are", key, got[key], want)
+		}
+	}
+}
+
 func TestScanFollowsTheFluxGraph(t *testing.T) {
 	root := fluxFixture(t)
 	cluster := func(name, apps string) {

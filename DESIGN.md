@@ -132,7 +132,7 @@ A `global-values.yaml` loaded by ten charts is dead in some and alive in others.
 - `check --app` sees one app, so it cannot decide: keys from a file other apps load are `SHARED`, never fail, and point to `scan`.
 - `prune` removes a key from a file only when every analyzed app that loads the file agrees. `prune --app` never edits a file another app loads; it points to `prune -f <file>`.
 
-"Other apps" means the whole repository, Argo CD and Flux, with the same resolution as `-f`, so apps spread over `apps/`, `clusters/` or `bootstrap/` are found. Values embedded in a manifest (a HelmRelease's `spec.values`) are never shared: two HelmReleases in one file have separate blocks.
+"Other apps" means the whole repository, Argo CD and Flux, with the same resolution as `-f`, so apps spread over `apps/`, `clusters/` or `bootstrap/` are found. Values embedded in a manifest (a HelmRelease's `spec.values`) are shared only line by line: a base that several clusters apply, or a patch several releases include, sets the same line in each, so `scan` judges it against all of them, while two HelmReleases in one file have separate blocks. With Flux variables a base line can be redundant in one cluster and needed in another; reporting it in the first would have `prune` delete what the second uses.
 
 ### Charts in memory
 
