@@ -196,7 +196,7 @@ The binary the actions install follows the ref you use them at, so pinning the a
 |---|---|
 | `guarnz/deadvalues@v0.1.0` | v0.1.0 |
 | `guarnz/deadvalues@v0` | the latest v0.x release; `v0` moves with every release |
-| `guarnz/deadvalues@<commit SHA>` | the latest release |
+| `guarnz/deadvalues@<commit SHA>` | the release tagged on that commit, as Renovate pins it; the latest release if the commit has no release tag |
 
 The `version` input overrides it: an exact tag such as `v0.1.0`, or `latest`. Releases in `0.x` may change flags and outputs; pin an exact version or a SHA (Renovate keeps either up to date) if your workflow must not change on its own.
 
