@@ -12,11 +12,18 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/guarnz/deadvalues/internal/report"
+	"github.com/guarnz/deadvalues/internal/retry"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
+
+func TestMain(m *testing.M) {
+	retry.Delays = []time.Duration{0, 0}
+	os.Exit(m.Run())
+}
 
 const (
 	casesChart  = "../../testdata/charts/cases"
