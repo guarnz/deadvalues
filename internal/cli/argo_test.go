@@ -449,6 +449,48 @@ spec:
 	}
 }
 
+func TestKustomizeHelmChartsByNameAndRelativeRoot(t *testing.T) {
+	root := t.TempDir()
+	copyDir(t, casesChart, filepath.Join(root, "charts", "cases"))
+	data, _ := os.ReadFile(casesValues)
+	writeFile(t, filepath.Join(root, "apps", "logs", "values.yaml"), string(data))
+	chart := func(release string) string {
+		return "  - name: cases\n    releaseName: " + release + "\n    valuesFile: values.yaml\n"
+	}
+	writeFile(t, filepath.Join(root, "apps", "logs", "kustomization.yaml"), "helmGlobals:\n  chartHome: ../../charts\nhelmCharts:\n"+chart("loki")+chart("agent"))
+	apps := func(args ...string) []string {
+		t.Helper()
+		out, _ := runCLI(t, append([]string{"scan", "-o", "json", "--fail-on", "none"}, args...)...)
+		var checks []jsonCheck
+		if err := decodeReport(out, &checks); err != nil {
+			t.Fatalf("%v: %v\n%s", args, err, out)
+		}
+		var names []string
+		for _, c := range checks {
+			names = append(names, c.App)
+		}
+		sort.Strings(names)
+		return names
+	}
+	for _, tt := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{root, "--repo-root", root}, []string{"apps/logs/agent", "apps/logs/loki"}},
+		{[]string{root, "--repo-root", root, "--only", "apps/logs/loki"}, []string{"apps/logs/loki"}},
+		{[]string{root, "--repo-root", root, "--only", "apps/logs"}, []string{"apps/logs/agent", "apps/logs/loki"}},
+		{[]string{root, "--repo-root", root, "--skip", "apps/logs/agent"}, []string{"apps/logs/loki"}},
+	} {
+		if got := apps(tt.args...); !slices.Equal(got, tt.want) {
+			t.Errorf("%v: apps %v, want %v", tt.args[2:], got, tt.want)
+		}
+	}
+	t.Chdir(root)
+	if got := apps("apps/logs", "--repo-root", "."); !slices.Equal(got, []string{"apps/logs/agent", "apps/logs/loki"}) {
+		t.Errorf("a relative --repo-root finds %v", got)
+	}
+}
+
 func TestKustomizeHelmChartsDiffAndChangedSince(t *testing.T) {
 	srv := helmRepo(t)
 	root := t.TempDir()

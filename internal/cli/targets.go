@@ -19,10 +19,7 @@ func (g *globals) manifestJobs(file string, t *targetFlags) ([]job, error) {
 	if err != nil {
 		return nil, &exitError{code: 2, err: fmt.Errorf("%s: %w", file, err)}
 	}
-	root := t.repoRoot
-	if root == "" {
-		root = argo.RepoRoot(file)
-	}
+	root := findRoot(t.repoRoot, file)
 	hasApp, hasRelease := false, false
 	for _, o := range objs {
 		hasApp = hasApp || o.Kind == "Application"
@@ -179,6 +176,18 @@ func prefixed(label, id string) string {
 		return id
 	}
 	return label + ":" + id
+}
+
+// findRoot returns --repo-root as an absolute path, or the git top-level of near: paths are
+// computed against it, and a relative root such as "." makes them fail.
+func findRoot(flag, near string) string {
+	if flag == "" {
+		return argo.RepoRoot(near)
+	}
+	if abs, err := filepath.Abs(flag); err == nil {
+		return abs
+	}
+	return flag
 }
 
 func relPath(root, p string) string {
