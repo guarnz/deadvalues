@@ -187,6 +187,7 @@ The Flux reader produces the same target as the Argo one. The field-by-field rul
 - **Exact lines.** The values are parsed twice: into a `map` for Helm and as `yaml.v3` nodes for positions. `github` annotations and SARIF point to the line of the key.
 - **Markdown without emoji.** Statuses are plain text and the ones that fail by default (`DEAD`, `BREAKING`) are bold. Color belongs to whatever shows the report; the GitHub Action adds a GitHub alert on top.
 - **Relative paths.** Every output, JSON included, uses paths relative to the current directory.
+- **Network retries.** In CI, a registry or CDN that hiccups would turn a pull request red for no reason of its own. `internal/retry` repeats chart downloads, OCI tag listings and renders (a schema can `$ref` a URL) after 2, 5 and 10 s, only for failures that can pass: timeouts, dropped connections, 502–504. A 401, 403, 404 or 500 repeats on every attempt, so it is reported at once. Once a call runs out of attempts the network is taken as down and later calls try once: a scan makes hundreds of renders, and waiting 17 s on each would turn a failing run into an hour. The same test tells `diff` that a render failed on the network, not on the values.
 - **The banner** shows only on a terminal: anything piped (CI, scripts) gets plain output, and `version` prints lines a script can parse.
 - **Exit codes** are the contract for CI: `0` nothing at the fail-on level, `1` findings, `2` the analysis could not run.
 

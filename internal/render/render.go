@@ -24,6 +24,7 @@ import (
 	releaseutil "helm.sh/helm/v4/pkg/release/v1/util"
 	"sigs.k8s.io/yaml"
 
+	"github.com/guarnz/deadvalues/internal/retry"
 	"github.com/guarnz/deadvalues/internal/values"
 )
 
@@ -124,6 +125,11 @@ func (r *Renderer) Defaults() (map[string]interface{}, error) {
 // Render returns the rendered manifests keyed by template path, skipping NOTES.txt,
 // partials, Helm test hooks and templates that render to nothing.
 func (r *Renderer) Render(vals map[string]interface{}) (map[string]string, error) {
+	// A schema can $ref another file by URL, downloaded on every render.
+	return retry.Do(func() (map[string]string, error) { return r.render(vals) })
+}
+
+func (r *Renderer) render(vals map[string]interface{}) (map[string]string, error) {
 	c := clone(r.chart)
 	if err := chartutil.ProcessDependencies(c, vals); err != nil {
 		return nil, err
