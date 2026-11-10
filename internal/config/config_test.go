@@ -32,13 +32,31 @@ func TestIgnoredPerApp(t *testing.T) {
 		{App: "n8n", Keys: []string{"strategy.rollingUpdate"}},
 		{Keys: []string{"global"}},
 	}}
-	if !c.Ignored("n8n", []string{"strategy", "rollingUpdate"}) {
+	if !c.Ignored("n8n", "n8n", []string{"strategy", "rollingUpdate"}) {
 		t.Error("app-scoped ignore not applied")
 	}
-	if c.Ignored("other", []string{"strategy", "rollingUpdate"}) {
+	if c.Ignored("other", "n8n", []string{"strategy", "rollingUpdate"}) {
 		t.Error("app-scoped ignore leaked to another app")
 	}
-	if !c.Ignored("other", []string{"global", "domain"}) {
+	if !c.Ignored("other", "x", []string{"global", "domain"}) {
 		t.Error("global ignore not applied")
+	}
+}
+
+func TestIgnoredPerChart(t *testing.T) {
+	c := &Config{Ignore: []Ignore{
+		{Chart: "app-template", Keys: []string{"defaultPodOptions.securityContext"}},
+		{App: "web", Chart: "app-template", Keys: []string{"service.main.ports"}},
+	}}
+	key := []string{"defaultPodOptions", "securityContext", "runAsUser"}
+	if !c.Ignored("hermes", "app-template", key) || !c.Ignored("kopia", "app-template", key) {
+		t.Error("a chart-scoped ignore applies to every app of the chart")
+	}
+	if c.Ignored("redis", "redis", key) {
+		t.Error("a chart-scoped ignore leaked to another chart")
+	}
+	port := []string{"service", "main", "ports", "http"}
+	if !c.Ignored("web", "app-template", port) || c.Ignored("api", "app-template", port) || c.Ignored("web", "other", port) {
+		t.Error("with app and chart, both must match")
 	}
 }
