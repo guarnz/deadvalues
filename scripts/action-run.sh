@@ -49,7 +49,7 @@ def rel: if $ws != "" and startswith($ws + "/") then .[($ws | length) + 1:] else
     | if (.error // "") != "" then {app: .app, file: (.appFile // ""), head: (.chart // ""), kind: "ERROR", key: "", detail: .error, src: null}
       elif (.skipped // "") != "" then {app: .app, file: (.appFile // ""), head: "", kind: ({"unsupported":"NOT YET","notApplied":"NOT APPLIED"}[.skipKind // ""] // "NOT ANALYZED"), key: "", detail: .skipped, src: null}
       elif has("changes") then .changes[]? | select(.ignored != true)
-        | {app: $r.app, file: ($r.appFile // ""), head: "chart \($r.from) → \($r.to)", kind: .kind, key: .key, detail: .detail, src: (.origins // [])[0], diff: true}
+        | {app: $r.app, file: ($r.appFile // ""), head: ("chart \($r.from) → \($r.to)" + ($r.appVersion // null | if . then " · app \(.from) → \(.to)\(if .major then " (major)" else "" end)" else "" end)), kind: .kind, key: .key, detail: .detail, src: (.origins // [])[0], diff: true}
       elif has("keys") then .keys[]?
         | select(.ignored != true and (.usedBy // "") == "" and ((.sharedWith // []) | length) == 0 and (.status | test("^(DEAD|CONDITIONAL|REDUNDANT)")))
         | {app: $r.app, file: ($r.appFile // ""), head: ($r.chart // ""), kind: (.status | split(" ")[0]), key: .key, detail: .detail, src: (.origins // [])[0]}
@@ -126,7 +126,7 @@ output() {
 # summary prints the report: findings from every JSON report in one place, and
 # the output of commands without one (explain, or a command that failed).
 summary() {
-  local i rows=0 breaking=0 stats="" blob="" run="" footer
+  local i rows=0 breaking=0 stats="" majors="" blob="" run="" footer
   local jsons=() others=() has_jq=1
   command -v jq >/dev/null || has_jq=0
   for ((i = 1; i <= n; i++)); do
@@ -141,6 +141,7 @@ summary() {
     rows="$(q '$rows | length')"
     breaking="$(q '$rows | map(select(.kind == "BREAKING")) | length')"
     stats="$(q "$stats_jq")"
+    majors="$(q '[$reports[] | select(.appVersion.major? == true) | "`\(.app)` \(.appVersion.from) → \(.appVersion.to)"] | unique | join(", ")')"
   fi
 
   footer="_Stats_: "
@@ -172,6 +173,9 @@ summary() {
     else
       printf "> [!WARNING]\n> Some apps could not be analyzed, see the errors below. This repository's workflow sets \`fail-on-error: false\`, so the errors alone do not fail the check.\n\n"
     fi
+  fi
+  if [[ -n "$majors" ]]; then
+    printf "> [!IMPORTANT]\n> New major app version: %s. deadvalues compares the chart's values, not the app itself; read the app's release notes.\n\n" "$majors"
   fi
   if [[ -n "$note" ]]; then printf '> [!NOTE]\n> %s\n\n' "$note"; fi
   if [[ "$has_jq" -eq 0 ]] && [[ "$n" -gt 0 ]]; then

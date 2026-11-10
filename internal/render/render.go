@@ -100,6 +100,8 @@ func (r *Renderer) Name() string { return r.chart.Metadata.Name }
 
 func (r *Renderer) Version() string { return r.chart.Metadata.Version }
 
+func (r *Renderer) AppVersion() string { return r.chart.Metadata.AppVersion }
+
 func (r *Renderer) UsesLookup() bool { return usesLookup(r.chart) }
 
 // MissingDependencies lists what Chart.yaml declares and the chart came without.

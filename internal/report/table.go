@@ -212,7 +212,14 @@ func (w *Writer) diffsTable(ds []*Diff) {
 			fmt.Fprintf(w.Out, "%s  %s %s\n", p.Bold(d.App), p.Red("error:"), d.Error)
 			continue
 		}
-		fmt.Fprintf(w.Out, "%s  %s %s → %s\n", p.Bold(d.App), d.Chart, d.From, d.To)
+		app := ""
+		if a := d.AppVersion; a != nil {
+			app = "  ·  " + a.String()
+			if a.Major {
+				app = "  ·  " + p.Yellow(a.String())
+			}
+		}
+		fmt.Fprintf(w.Out, "%s  %s %s → %s%s\n", p.Bold(d.App), d.Chart, d.From, d.To, app)
 		fmt.Fprintln(w.Out, p.Dim(fmt.Sprintf("%d renders in %s", d.Renders, duration(d.Millis))))
 		fmt.Fprintln(w.Out)
 		width := 0

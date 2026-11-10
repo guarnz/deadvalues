@@ -65,6 +65,8 @@ A new chart version that does not render with the values that rendered the old o
 
 An app that fails to load (its chart source is not found, or its kustomize overlay does not build) is reported by `scan --changed-since` only when a change touches its file or overlay, and by `diff --base` only when the change causes the error, not when it was already there at the base. A full `scan` reports every one of them.
 
+When the bump changes the `appVersion` of `Chart.yaml`, the header shows it next to the chart versions, `app 1.20.1 → 2.0.4`, and adds `(major)` when the app goes to another major version. That is the app moving, not your values: read its release notes. An `appVersion` that is not a version number, such as a date, is shown without `(major)`.
+
 It does not matter where the bump happened: an Application's `targetRevision`, a HelmRelease `version`, an `OCIRepository` tag or an overlay patch.
 
 With `-f` alone, the comparison runs for every Application and HelmRelease that loads those values files. A values file that no manifest loads has no chart version in git; use `--chart` with `--from` and `--to` for it.

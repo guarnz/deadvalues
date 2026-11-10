@@ -1,6 +1,7 @@
 apiVersion: v2
 name: cases
 version: 0.1.0
+appVersion: 1.20.1
 dependencies:
   - name: sub
     version: 0.1.0

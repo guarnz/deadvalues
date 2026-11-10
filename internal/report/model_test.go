@@ -26,6 +26,25 @@ func TestDeadDetailOutlinesDefault(t *testing.T) {
 	}
 }
 
+func TestAppVersion(t *testing.T) {
+	for _, tc := range []struct{ from, to, want string }{
+		{"1.20.1", "2.0.4", "app 1.20.1 → 2.0.4 (major)"},
+		{"v1.20.1", "v1.21.0", "app v1.20.1 → v1.21.0"},
+		{"2.0.4", "1.20.1", "app 2.0.4 → 1.20.1 (major)"},
+		{"RELEASE.2024-01-01", "RELEASE.2025-01-01", "app RELEASE.2024-01-01 → RELEASE.2025-01-01"},
+		{"1.20.1", "1.20.1", ""},
+		{"", "2.0.4", ""},
+	} {
+		got := ""
+		if a := NewAppVersion(tc.from, tc.to); a != nil {
+			got = a.String()
+		}
+		if got != tc.want {
+			t.Errorf("NewAppVersion(%q, %q) = %q, want %q", tc.from, tc.to, got, tc.want)
+		}
+	}
+}
+
 func TestRenderFailureFindsTheTemplate(t *testing.T) {
 	for _, tc := range []struct{ err, msg, template string }{
 		{"execution error at (velero/templates/NOTES.txt:12:4): backupStorageLocation is now a list", "backupStorageLocation is now a list", "velero/templates/NOTES.txt:12"},

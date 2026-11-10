@@ -38,7 +38,7 @@ Each item depends on the command.
 | `skipped`, `skipKind` | Why the app was not analyzed: `unsupported`, `notApplied` or `unavailable` |
 | `error` | Why the app could not be analyzed |
 
-**`diff`:** one item per app whose chart version changed, with `from`, `to`, `changes` (`key`, `path`, `kind`, `from`, `to`, `value`, `oldDefault`, `newDefault`, `detail`, `origins`) and `counts` by kind. When the new chart does not render with your values, `changes` has one `BREAKING` entry with an empty `key`, the chart's message in `detail` and `template` with the `file:line` that failed, or `values.schema.json`. A `diff <dir>` where no version changed has an empty `results`.
+**`diff`:** one item per app whose chart version changed, with `from`, `to`, `appVersion` when the bump changes the `appVersion` of `Chart.yaml` (`from`, `to`, and `major: true` when the app goes to another major version), `changes` (`key`, `path`, `kind`, `from`, `to`, `value`, `oldDefault`, `newDefault`, `detail`, `origins`) and `counts` by kind. When the new chart does not render with your values, `changes` has one `BREAKING` entry with an empty `key`, the chart's message in `detail` and `template` with the `file:line` that failed, or `values.schema.json`. A `diff <dir>` where no version changed has an empty `results`.
 
 **`explain`:** one item per app the key belongs to, with `key`, `value` and `changes` (`object`, `field`, `before`, `after`); `required` when the render breaks without the key, and `group` when it only breaks because the key cannot go alone (a schema that needs it inside its map): removing that map changes nothing, so the key is dead with it, as `scan` reports.
 

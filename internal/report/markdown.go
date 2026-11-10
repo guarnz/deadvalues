@@ -76,7 +76,11 @@ func (w *Writer) plainCounts(c *Check) string {
 
 func (w *Writer) diffsMarkdown(ds []*Diff) {
 	for _, d := range ds {
-		fmt.Fprintf(w.Out, "### `%s` — %s %s → %s\n\n", d.App, d.Chart, d.From, d.To)
+		app := ""
+		if d.AppVersion != nil {
+			app = ", " + d.AppVersion.String()
+		}
+		fmt.Fprintf(w.Out, "### `%s` — %s %s → %s%s\n\n", d.App, d.Chart, d.From, d.To, app)
 		if d.Error != "" {
 			fmt.Fprintf(w.Out, "> **Error:** %s\n\n", mdEscape(d.Error))
 			continue
