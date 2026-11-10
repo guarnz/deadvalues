@@ -14,14 +14,17 @@
 
 ## Writing to files
 
-`--output-file` writes the report to a file in UTF-8, whatever the shell (PowerShell's `>` re-encodes the output of other programs). `FORMAT=FILE` writes that format and keeps the normal output on stdout, so one run can produce several reports:
+`--report` writes the report to files in UTF-8, whatever the shell (PowerShell's `>` re-encodes the output of other programs), and keeps the table on screen. The files are named `<command>-<date>.<ext>` in the current directory: `scan-2026-11-10.json`, `.md` and `.sarif`. Without a file format in `-o` it writes all three (`explain`: json and Markdown); with `-o`, only those listed, and `-o` takes several formats, comma-separated:
 
 ```bash
-deadvalues check -f values.yaml -o markdown --output-file report.md
-deadvalues scan apps --output-file markdown=report.md --output-file sarif=results.sarif
+deadvalues scan apps --report                                 # table on screen, scan-<date>.json, .md and .sarif
+deadvalues scan apps -o table,sarif --report                  # table on screen, scan-<date>.sarif
+deadvalues scan apps -o markdown,sarif --report-path reports/ # reports/scan-<date>.md and .sarif
+deadvalues scan apps --report-path reports/homelab            # reports/homelab.json, .md and .sarif
+deadvalues scan apps --report-path results.sarif              # that file only
 ```
 
-The file is overwritten; a missing directory is an error. `prune` and `version` do not produce a report and reject the flag.
+`--report-path` implies `--report` and says where: a directory (an existing one, or a path ending in `/`) gets the default names; a file name with the extension of a format (`.json`, `.md`, `.sarif`) is that one file; anything else is a base name, to which each format adds its extension. Missing directories are created and the files are overwritten, so a second run on the same day replaces the first; the time is in the report (`generatedAt` in json). Each file written is printed on stderr. `table` or `github`, when listed in `-o`, stays on screen. Without `--report`, `-o` takes one format and prints it on stdout, so `-o json | jq` works as before. `prune` and `version` do not produce a report and reject these flags.
 
 ## Color
 

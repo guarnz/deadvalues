@@ -1,6 +1,6 @@
 # JSON output
 
-`-o json`, and `--output-file json=FILE`, print one object for every command that produces a report:
+`-o json`, and the json file of `--report`, hold one object for every command that produces a report:
 
 ```json
 {

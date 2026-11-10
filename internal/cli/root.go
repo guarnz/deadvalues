@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -86,6 +87,9 @@ type globals struct {
 	color       string
 	noColor     bool
 	verbose     bool
+	formats     []string
+	report      bool
+	reportPath  string
 	outputFiles []string
 	outputs     []outputFile
 
@@ -122,7 +126,9 @@ output changes. No template parsing, no regex.`,
 
 	f := root.PersistentFlags()
 	f.StringVarP(&g.configPath, "config", "c", "", "path to .deadvalues.yaml (default: repo root)")
-	f.StringVarP(&g.output, "output", "o", "table", "table | json | markdown | sarif | github")
+	f.StringSliceVarP(&g.formats, "output", "o", []string{"table"}, "table | json | markdown | sarif | github; several, comma-separated, with --report")
+	f.BoolVar(&g.report, "report", false, "write json, markdown and sarif, or those in -o, to <command>-<date>.<ext> in the current directory")
+	f.StringVar(&g.reportPath, "report-path", "", "write the report files here instead: a directory, a base name, or a file name when there is one file format (implies --report)")
 	f.StringVar(&g.kubeVersion, "kube-version", "", "Kubernetes version for .Capabilities (default: Helm SDK default)")
 	f.StringSliceVar(&g.apiVersions, "api-versions", nil, "extra API versions for .Capabilities.APIVersions.Has")
 	f.StringVar(&g.cacheDir, "cache-dir", "", `chart cache (default "<user cache dir>/deadvalues")`)
@@ -132,6 +138,7 @@ output changes. No template parsing, no regex.`,
 	f.BoolVar(&g.noColor, "no-color", false, "same as --color=never")
 	f.BoolVarP(&g.verbose, "verbose", "v", false, "log every render and probe")
 	f.StringArrayVar(&g.outputFiles, "output-file", nil, "write the report to a file in UTF-8 instead of stdout; FORMAT=FILE writes that format and keeps stdout (repeatable)")
+	_ = f.MarkHidden("output-file")
 
 	var showVersion bool
 	root.Flags().BoolVar(&showVersion, "version", false, "print version, commit and Helm SDK version")
@@ -174,8 +181,8 @@ output changes. No template parsing, no regex.`,
 }
 
 func (g *globals) setup(cmd *cobra.Command) error {
-	if !slices.Contains(report.Formats, g.output) {
-		return usageErr("--output must be one of %s", strings.Join(report.Formats, ", "))
+	if err := g.outputFormats(cmd.Name(), time.Now()); err != nil {
+		return err
 	}
 	if !slices.Contains([]string{"auto", "always", "never"}, g.color) {
 		return usageErr("--color must be auto, always or never")
@@ -183,8 +190,6 @@ func (g *globals) setup(cmd *cobra.Command) error {
 	if g.workers < 1 {
 		return usageErr("--workers must be at least 1")
 	}
-	g.outputs = parseOutputFiles(g.outputFiles, g.output)
-
 	if g.verbose {
 		log.SetOutput(g.stderr)
 	} else {
