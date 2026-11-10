@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -61,13 +62,25 @@ type Check struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// ResolveShared handles values files loaded by several targets: a key with no effect
-// in one chart but used by another chart loading the same file is not reported.
+// ResolveShared handles values files and patches several targets load: a key with no effect
+// in one chart but used by another chart through the same file is not reported.
 func ResolveShared(cs []*Check) {
 	users := map[string][]*Check{}
+	add := func(f string, c *Check) {
+		if !slices.Contains(users[f], c) {
+			users[f] = append(users[f], c)
+		}
+	}
 	for _, c := range cs {
 		for _, f := range c.Values {
-			users[f] = append(users[f], c)
+			add(f, c)
+		}
+		for _, k := range c.Keys {
+			for _, o := range k.Origins {
+				if o.IsFile && o.Prefix != nil {
+					add(o.File, c)
+				}
+			}
 		}
 	}
 	for _, c := range cs {
@@ -137,13 +150,13 @@ func contains(xs []string, x string) bool {
 
 func usedElsewhere(c *Check, k *Key, users map[string][]*Check) string {
 	for _, o := range k.Origins {
-		// Values embedded in a manifest (a HelmRelease's spec.values) belong
-		// to that release only, even when other releases share the file.
-		if !o.IsFile || o.Prefix != nil {
+		if !o.IsFile {
 			return ""
 		}
 		for _, other := range users[o.File] {
-			if other == c {
+			// Values inside a manifest are shared only line by line, as a patch several releases
+			// include; a HelmRelease's own spec.values belongs to it alone.
+			if other == c || (o.Prefix != nil && !other.setsAt(o)) {
 				continue
 			}
 			if s, ok := other.status(k.Path); ok && s.Effective() {
@@ -152,6 +165,15 @@ func usedElsewhere(c *Check, k *Key, users map[string][]*Check) string {
 		}
 	}
 	return ""
+}
+
+func (c *Check) setsAt(o values.Origin) bool {
+	for _, k := range c.Keys {
+		if slices.ContainsFunc(k.Origins, func(x values.Origin) bool { return x.File == o.File && x.Doc == o.Doc && x.Line == o.Line }) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Check) status(path []string) (probe.Status, bool) {
