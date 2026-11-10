@@ -4,7 +4,8 @@
 #
 # Without a version input, the binary follows the ref the action was used at,
 # so pinning the action also pins the binary: @v0.1.0 installs v0.1.0, @v0
-# the latest v0.x release, and a commit SHA the latest release.
+# the latest v0.x release, and a commit SHA the release tagged on that commit
+# (the latest release when none is).
 set -euo pipefail
 
 repo=guarnz/deadvalues
@@ -30,6 +31,16 @@ release_tag() {
       return 1
     fi
     echo "$match"
+  elif [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+    local match
+    match="$(git ls-remote --tags "https://github.com/$repo" 2>/dev/null \
+      | awk -v sha="$ref" '$1 == sha { sub("refs/tags/", "", $2); sub(/\^\{\}$/, "", $2); print $2 }' \
+      | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' | sort -V | tail -n 1 || true)"
+    if [[ -n "$match" ]]; then
+      echo "$match"
+    else
+      echo "no release is tagged on $ref; installing the latest release" >&2
+    fi
   fi
 }
 
