@@ -16,6 +16,11 @@ import (
 	"github.com/guarnz/deadvalues/internal/values"
 )
 
+// Unsupported is a chart source Flux accepts and deadvalues does not read yet.
+type Unsupported struct{ What string }
+
+func (e *Unsupported) Error() string { return e.What }
+
 // IsRelease reports whether o is a full HelmRelease. Partial HelmReleases
 // used as kustomize patches have neither chart nor chartRef.
 func IsRelease(o *Object) bool {
@@ -148,8 +153,10 @@ func (r *Resolver) chart(rel *Object, spec *yaml.Node, ns string) (source.Ref, e
 				return source.Ref{}, fmt.Errorf("HelmChart %s/%s not found in the repository", crNS, name)
 			}
 			return r.chartSpec(o, Get(o.Node, "spec"), crNS)
+		case "ExternalArtifact":
+			return source.Ref{}, &Unsupported{What: fmt.Sprintf("chartRef to ExternalArtifact %s/%s: charts from an ExternalArtifact are not read", crNS, name)}
 		default:
-			return source.Ref{}, fmt.Errorf("chartRef kind %q is not supported", kind)
+			return source.Ref{}, fmt.Errorf("chartRef kind %q is not one Flux accepts: use OCIRepository, HelmChart or ExternalArtifact", kind)
 		}
 	}
 	cs := Get(spec, "chart", "spec")
@@ -228,8 +235,12 @@ func (r *Resolver) chartSpec(owner *Object, cs *yaml.Node, ns string) (source.Re
 			return elsewhere, nil
 		}
 		return source.Ref{}, fmt.Errorf("chart %s from GitRepository %s/%s is not in this repository", chart, srcNS, name)
+	case "Bucket":
+		return source.Ref{}, &Unsupported{What: fmt.Sprintf("chart %s from Bucket %s/%s: charts from a Bucket are not read", chart, srcNS, name)}
+	case "OCIRepository":
+		return source.Ref{}, fmt.Errorf("sourceRef kind OCIRepository is not one Flux accepts for a chart: reference OCIRepository %s/%s with spec.chartRef of the HelmRelease instead", srcNS, name)
 	default:
-		return source.Ref{}, fmt.Errorf("sourceRef kind %q is not supported", kind)
+		return source.Ref{}, fmt.Errorf("sourceRef kind %q is not one Flux accepts for a chart: use HelmRepository, GitRepository or Bucket", kind)
 	}
 }
 
