@@ -938,6 +938,7 @@ spec:
 	writeFile(t, filepath.Join(root, "apps", "namespaces.yaml"), "apiVersion: fluxcd.controlplane.io/v1\nkind: ResourceSet\nmetadata:\n  name: namespaces\nspec:\n  resources:\n    - {apiVersion: v1, kind: Namespace}\n")
 	writeFile(t, filepath.Join(root, "apps", "helmfile.yaml"), "repositories: []\nreleases:\n  - {name: x, chart: y/z}\n")
 	writeFile(t, filepath.Join(root, "apps", "helmfile-values.yaml"), "replicas: 1\n")
+	writeFile(t, filepath.Join(root, "apps", "bucket.yaml"), "apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: stored\n  namespace: apps\nspec:\n  chart:\n    spec:\n      chart: ./charts/stored\n      sourceRef: {kind: Bucket, name: charts}\n  values:\n    replicas: 1\n")
 
 	out, code := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "-o", "json")
 	if code != 0 {
@@ -947,12 +948,12 @@ spec:
 	for _, c := range decodeChecks(t, out) {
 		got[c.App] = c.SkipKind
 	}
-	want := map[string]string{"argocd/fleet": "unsupported", "apps/workers": "unsupported", "apps/helmfile.yaml": "unsupported"}
+	want := map[string]string{"argocd/fleet": "unsupported", "apps/workers": "unsupported", "apps/helmfile.yaml": "unsupported", "apps/stored": "unsupported"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("apps = %v, want %v", got, want)
 	}
 	table, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root)
-	if !strings.Contains(table, "not supported yet: ApplicationSet") || !strings.Contains(table, "3 not supported yet") {
+	if !strings.Contains(table, "not supported yet: ApplicationSet") || !strings.Contains(table, "charts from a Bucket are not read") || !strings.Contains(table, "4 not supported yet") {
 		t.Errorf("table:\n%s", table)
 	}
 	if skipped, _ := runCLI(t, "scan", filepath.Join(root, "apps"), "--repo-root", root, "--skip", "fleet,workers,helmfile.yaml,apps/helmfile.yaml", "-o", "json"); strings.Contains(skipped, "fleet") {

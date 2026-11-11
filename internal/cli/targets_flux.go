@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -80,6 +81,10 @@ func (g *globals) fluxFileJobs(files []string, root string, t *targetFlags, filt
 			if !filter.keep(f, appNames("", o, rel)...) {
 				continue
 			}
+			if j, ok := unsupportedSource(o.ID(), o.Name, f, root, err); ok {
+				jobs = append(jobs, j)
+				continue
+			}
 			if err != nil {
 				failed = append(failed, failedAt(o.ID(), f, err))
 				continue
@@ -152,6 +157,11 @@ func (g *globals) buildJobs(objs []*flux.Object, root string, b build, filter *a
 		}
 		rel, err := res.Resolve(o)
 		if !filter.keep(file, appNames(b.label, o, rel)...) {
+			continue
+		}
+		if j, ok := unsupportedSource(prefixed(b.label, o.ID()), o.Name, file, root, err); ok {
+			j.cluster = b.cluster
+			jobs = append(jobs, j)
 			continue
 		}
 		if err != nil {
@@ -268,6 +278,17 @@ func (g *globals) notAppliedJobs(files []string, root, label, overlay string, fi
 		}
 	}
 	return jobs
+}
+
+// unsupportedSource lists a HelmRelease whose chart source Flux accepts and is not read yet
+// as not supported yet, instead of an error.
+func unsupportedSource(name, app, file, root string, err error) (job, bool) {
+	var u *flux.Unsupported
+	if !errors.As(err, &u) {
+		return job{}, false
+	}
+	return job{name: name, app: app, appFile: file, ident: "unsupported:" + relPath(root, file) + ":" + name,
+		vals: values.New(), skip: u.What, skipKind: report.SkipUnsupported}, true
 }
 
 // unsupportedJobs lists what deploys charts in the repository and is not read yet, so

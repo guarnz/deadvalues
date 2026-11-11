@@ -1,6 +1,7 @@
 package flux
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -132,6 +133,9 @@ spec: {chart: podinfo, version: "6.5.0", sourceRef: {kind: HelmRepository, name:
 		{"  chart: {spec: {url: oci://ghcr.io/x/y, ref: {tag: 1.0.0, semver: 1.x}}}", "", "oci://ghcr.io/x/y", "1.x", ""},
 		{"  chart: {kind: OCIRepository, spec: {ref: {tag: 1.0.0}}}", "", "", "", "has no url"},
 		{"  chart: {spec: {chart: app}}", "", "", "", "neither a sourceRef nor an OCIRepository url"},
+		{"  chart: {spec: {chart: app, sourceRef: {kind: OCIRepository, name: tagged}}}", "", "", "", "reference OCIRepository ns/tagged with spec.chartRef"},
+		{"  chart: {spec: {chart: app, sourceRef: {kind: Nope, name: x}}}", "", "", "", "use HelmRepository, GitRepository or Bucket"},
+		{"  chartRef: {kind: Nope, name: x}", "", "", "", "use OCIRepository, HelmChart or ExternalArtifact"},
 	}
 	for _, tt := range tests {
 		out, err := r.Resolve(rel(tt.spec))
@@ -362,6 +366,24 @@ spec:
 	}
 	if vars, _ := ix.Vars(ks); vars["APP"] != "ollama" {
 		t.Errorf("APP = %q, want the anchored value ollama", vars["APP"])
+	}
+}
+
+func TestResolveUnsupportedSources(t *testing.T) {
+	r := &Resolver{Sources: &Index{}}
+	for spec, want := range map[string]string{
+		"  chart: {spec: {chart: app, sourceRef: {kind: Bucket, name: charts}}}": "chart app from Bucket ns/charts: charts from a Bucket are not read",
+		"  chartRef: {kind: ExternalArtifact, name: art}":                        "chartRef to ExternalArtifact ns/art: charts from an ExternalArtifact are not read",
+	} {
+		o, err := ParseYAML([]byte("apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata: {name: app, namespace: ns}\nspec:\n" + spec))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = r.Resolve(o[0])
+		var u *Unsupported
+		if !errors.As(err, &u) || u.What != want {
+			t.Errorf("%s: err = %v, want Unsupported %q", spec, err, want)
+		}
 	}
 }
 
