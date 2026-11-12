@@ -271,13 +271,13 @@ func (p *prober) sentinelChanges(path []string, v interface{}) bool {
 	return false
 }
 
-// removalMatters reports whether removing path changes the output of the
-// variant's baseline.
+// removalMatters reports whether removing path changes the output of the variant's
+// baseline or breaks it, as a port a schema requires once its probe is on.
 func (p *prober) removalMatters(v *variant, path []string) bool {
 	mutated := values.CopyMap(v.user)
 	values.Delete(mutated, path)
 	changed, err := p.differs(v.render, mutated, v.base, v.noise)
-	return err == nil && changed
+	return err != nil || changed
 }
 
 // conditional finds the disabled `enabled` flags that gate the key: one at a
