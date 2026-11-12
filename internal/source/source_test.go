@@ -137,6 +137,7 @@ func TestRefusedSaysWhatToCheck(t *testing.T) {
 		want  string
 	}{
 		{ghcr, "ghcr.io/home-operations/charts-mirror/trivy-operator", true, "not found, or private and no credentials (for a private registry, run `helm registry login ghcr.io`): failed to perform"},
+		{errors.New(`failed to perform "FetchReference" on source: GET "https://ocharted.jory.dev/v2/x/headlamp/manifests/0.45.0": basic credential not found`), "ocharted.jory.dev/x/headlamp", true, "not found, or private and no credentials (for a private registry, run `helm registry login ocharted.jory.dev`): failed to perform"},
 		{errors.New("GET https://charts.example.com/index.yaml: 401 Unauthorized"), "https://charts.example.com", false, "access denied (for a private repository, add it with `helm repo add`"},
 		{errors.New(`GET "https://ghcr.io/v2/x/manifests/9.9.9": response status code 404: manifest unknown`), "ghcr.io/x", true, "not found, check the chart name and version: "},
 		{errors.New("dial tcp 1.2.3.4:443: connect: connection refused"), "ghcr.io/x", true, "dial tcp"},
