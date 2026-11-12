@@ -273,7 +273,7 @@ func (l *Loader) http(ctx context.Context, ref Ref) (*chart.Chart, error) {
 }
 
 var (
-	denied   = regexp.MustCompile(`status code 40[13]\b|: 40[13] |\b(denied|unauthorized)\b`)
+	denied   = regexp.MustCompile(`status code 40[13]\b|: 40[13] |\b(denied|unauthorized)\b|basic credential not found`)
 	notFound = regexp.MustCompile(`status code 404\b|: 404 |manifest unknown`)
 )
 
