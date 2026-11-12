@@ -9,7 +9,7 @@ deadvalues does not parse templates. It **renders the chart, removes each key yo
 3. For keys whose removal changes nothing:
    - equal to the chart default → `REDUNDANT`
    - a different value changes the output → `REDUNDANT (implicit)`: your value matches a fallback in the template (`default "X" .Values.y`)
-   - turning on a disabled `enabled` flag, or all the disabled ones above the key together, makes the key matter → `CONDITIONAL`
+   - turning on a disabled `enabled` flag, or all the disabled ones above the key together, makes the key matter → `CONDITIONAL`. Matter means its removal changes the output or breaks the render, as a probe `port` a schema requires whenever `httpGet` is set
    - declaring an API the chart checks with `.Capabilities.APIVersions.Has` (or `has ... .Capabilities.APIVersions`) makes the key matter → `CONDITIONAL` on that API. When the check takes the API from a variable (`Has $apiVersion`, filled by a helper), the APIs quoted in the chart's templates and helpers are tried instead
    - only an upgrade reads it (`.Release.IsUpgrade`), as Flux and `helm upgrade` render → `ALIVE`; not for Argo CD, which renders as `helm template`
    - otherwise → `DEAD`

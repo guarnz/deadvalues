@@ -48,6 +48,40 @@ func TestConditionalOnNestedToggles(t *testing.T) {
 	}
 }
 
+// A key the schema requires whenever its map is set, under a disabled probe, is CONDITIONAL
+// like its siblings, not DEAD: removing it alone breaks the render.
+func TestConditionalWhenRemovalBreaksTheSchema(t *testing.T) {
+	render := func(v map[string]interface{}) (compare.Snapshot, error) {
+		out := compare.Snapshot{}
+		if get, ok := values.Lookup(v, []string{"probe", "spec", "httpGet"}); ok {
+			if _, hasPort := get.(map[string]interface{})["port"]; !hasPort {
+				return nil, fmt.Errorf("at '/probe/spec/httpGet': missing property 'port'")
+			}
+		}
+		if on, _ := values.Lookup(v, []string{"probe", "enabled"}); on == true {
+			path, _ := values.Lookup(v, []string{"probe", "spec", "httpGet", "path"})
+			port, _ := values.Lookup(v, []string{"probe", "spec", "httpGet", "port"})
+			out["probe"] = fmt.Sprint(path, port)
+		}
+		return out, nil
+	}
+	user := map[string]interface{}{"probe": map[string]interface{}{
+		"enabled": false,
+		"spec":    map[string]interface{}{"httpGet": map[string]interface{}{"path": "/", "port": 8642}},
+	}}
+	defaults := map[string]interface{}{"probe": map[string]interface{}{"enabled": false}}
+	res, err := Run(Options{Render: render, User: user, Defaults: defaults})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"path", "port"} {
+		f, ok := res.Find([]string{"probe", "spec", "httpGet", key})
+		if !ok || f.Status != Conditional {
+			t.Errorf("httpGet.%s = %+v, want CONDITIONAL", key, f)
+		}
+	}
+}
+
 // The sentinel must differ from the user value for every YAML type, or the
 // REDUNDANT (implicit) test would miss template fallbacks for that type.
 func TestSentinelDiffersFromValue(t *testing.T) {
